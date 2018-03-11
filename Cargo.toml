@@ -1,6 +1,6 @@
 [package]
 name = "autotools"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
 license = "MIT"
 keywords = ["build-dependencies"]
