@@ -13,3 +13,5 @@ the API tries to be as similar as possible to it.
 [build-dependencies]
 autotools = "0.1"
 ```
+
+[1]: https://www.gnu.org/software/autoconf/autoconf.html
