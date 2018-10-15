@@ -1,6 +1,7 @@
 # autotools/configure&make support for build.rs
 
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![dependency status](https://deps.rs/repo/github/lu-zero/autotools-rs/status.svg)](https://deps.rs/repo/github/lu-zero/autotools-rs)
 
 A build dependency to compile a native library that uses [autotools][1] or
 a compatible `configure` script + `make`.
