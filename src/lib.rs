@@ -194,6 +194,12 @@ impl Config {
         self
     }
 
+    /// Options to pass through to `autoreconf` prior to configuring the build.
+    pub fn reconf<P: AsRef<OsStr>>(&mut self, flags: P) -> &mut Config {
+        self.reconfig = Some(flags.as_ref().to_os_string());
+        self
+    }
+
     /// Run this configuration, compiling the library with all the configured
     /// options.
     ///
