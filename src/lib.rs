@@ -61,6 +61,7 @@ pub struct Config {
     cxxflags: OsString,
     options: Vec<(Kind, OsString, Option<OsString>)>,
     target: Option<String>,
+    make_args: Option<Vec<String>>,
     host: Option<String>,
     out_dir: Option<PathBuf>,
     env: Vec<(OsString, OsString)>,
@@ -98,12 +99,19 @@ impl Config {
             cflags: OsString::new(),
             cxxflags: OsString::new(),
             options: Vec::new(),
+            make_args: None,
             out_dir: None,
             target: None,
             host: None,
             env: Vec::new(),
             reconfig: None,
         }
+    }
+
+    /// Additional arguments to pass through to `make`.
+    pub fn make_args(&mut self, flags: Vec<String>) -> &mut Config {
+        self.make_args = Some(flags);
+        self
     }
 
     fn set_opt<P: AsRef<OsStr>>(&mut self, kind: Kind, opt: P, optarg: Option<P>) -> &mut Config {
@@ -272,7 +280,12 @@ impl Config {
         cmd.current_dir(&build);
 
         let mut makeflags = None;
-        let mut parallel_args = Vec::new();
+        let mut make_args = Vec::new();
+
+        if let Some(args) = &self.make_args {
+            make_args.extend_from_slice(args);
+        }
+
         if let Ok(s) = env::var("NUM_JOBS") {
             match env::var_os("CARGO_MAKEFLAGS") {
                 // Only do this on non-windows and non-bsd
@@ -288,7 +301,7 @@ impl Config {
                 ) => makeflags = Some(s.clone()),
 
                 // This looks like `make`, let's hope it understands `-jN`.
-                _ => parallel_args.push(format!("-j{}", s)),
+                _ => make_args.push(format!("-j{}", s)),
             }
         }
 
@@ -298,9 +311,9 @@ impl Config {
         if let Some(flags) = makeflags {
             cmd.env("MAKEFLAGS", flags);
         }
-        run(cmd.arg(target)
 
-                .args(&parallel_args)
+        run(cmd.arg(target)
+                .args(&make_args)
                 .current_dir(&build), "make");
 
         println!("cargo:root={}", dst.display());
