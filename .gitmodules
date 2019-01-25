@@ -1,0 +1,3 @@
+[submodule "example/xmp-sys/libxmp"]
+	path = examples/xmp-sys/libxmp
+	url = https://github.com/cmatsuoka/libxmp/
