@@ -62,6 +62,7 @@ pub struct Config {
     options: Vec<(Kind, OsString, Option<OsString>)>,
     target: Option<String>,
     make_args: Option<Vec<String>>,
+    make_targets: Option<Vec<String>>,
     host: Option<String>,
     out_dir: Option<PathBuf>,
     env: Vec<(OsString, OsString)>,
@@ -100,6 +101,7 @@ impl Config {
             cxxflags: OsString::new(),
             options: Vec::new(),
             make_args: None,
+            make_targets: None,
             out_dir: None,
             target: None,
             host: None,
@@ -197,6 +199,12 @@ impl Config {
     /// Options to pass through to `autoreconf` prior to configuring the build.
     pub fn reconf<P: AsRef<OsStr>>(&mut self, flags: P) -> &mut Config {
         self.reconfig = Some(flags.as_ref().to_os_string());
+        self
+    }
+
+    /// Build the given make target.
+    pub fn make_target(&mut self, make_target: &str) -> &mut Config {
+        self.make_targets.get_or_insert_with(Vec::new).push(make_target.to_owned());
         self
     }
 
@@ -312,13 +320,13 @@ impl Config {
         }
 
         // And build!
-        let target = // self.cmake_target.clone().unwrap_or(
-            "install".to_string();
+        let make_targets = self.make_targets
+            .get_or_insert(vec!["install".to_string()]);
         if let Some(flags) = makeflags {
             cmd.env("MAKEFLAGS", flags);
         }
 
-        run(cmd.arg(target)
+        run(cmd.args(make_targets)
                 .args(&make_args)
                 .current_dir(&build), "make");
 
