@@ -1,0 +1,15 @@
+[package]
+name = "xmp-sys"
+version = "0.1.0"
+authors = ["Martin Larralde <martin.larralde@ens-cachan.fr>"]
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[build-dependencies.autotools]
+version = "0.1"
+path = "../.."
+
+[build-dependencies.bindgen]
+version = "*"
