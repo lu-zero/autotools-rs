@@ -30,12 +30,12 @@
 //!
 //! let dst = Config::new("foo")
 //!     .reconf("-ivf")
-//!     .enable("feature")
-//!     .with("dep")
-//!     .disable("otherfeature")
-//!     .without("otherdep")
+//!     .enable("feature", None)
+//!     .with("dep", None)
+//!     .disable("otherfeature", None)
+//!     .without("otherdep", None)
 //!     .cflag("-Wall")
-//!     .build()
+//!     .build();
 //! ```
 
 extern crate cc;
