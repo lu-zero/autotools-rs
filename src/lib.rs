@@ -67,6 +67,7 @@ pub struct Config {
     out_dir: Option<PathBuf>,
     env: Vec<(OsString, OsString)>,
     reconfig: Option<OsString>,
+    build_insource: bool,
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -107,6 +108,7 @@ impl Config {
             host: None,
             env: Vec::new(),
             reconfig: None,
+            build_insource: false,
         }
     }
 
@@ -203,8 +205,20 @@ impl Config {
     }
 
     /// Build the given make target.
+    ///
+    /// If this function is not called, the build will default to `make install`.
     pub fn make_target(&mut self, make_target: &str) -> &mut Config {
         self.make_targets.get_or_insert_with(Vec::new).push(make_target.to_owned());
+        self
+    }
+
+    /// Build the library in-source.
+    ///
+    /// This is generally not recommended, but can be required for libraries that
+    /// make extensive use of nested Makefiles, which cannot be included in
+    /// out-of-source builds.
+    pub fn insource(&mut self, build_insource: bool) -> &mut Config {
+        self.build_insource = build_insource;
         self
     }
 
@@ -238,12 +252,21 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
-        let dst = self.out_dir.clone().unwrap_or_else(|| {
-            PathBuf::from(getenv_unwrap("OUT_DIR"))
-        });
-        let build = dst.join("build");
-        self.maybe_clear(&build);
-        let _ = fs::create_dir(&build);
+
+        let dst;
+        let build;
+
+        if self.build_insource {
+            dst = self.path.clone();
+            build = dst.clone();
+        } else {
+            dst = self.out_dir.clone().unwrap_or_else(|| {
+                PathBuf::from(getenv_unwrap("OUT_DIR"))
+            });
+            build = dst.join("build");
+            self.maybe_clear(&build);
+            let _ = fs::create_dir(&build);
+        }
 
         // TODO: env overrides?
         // TODO: PKG_CONFIG_PATH
