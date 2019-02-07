@@ -285,6 +285,14 @@ impl Config {
         // TODO: make it optional?
         cmd.arg("--disable-shared").arg("--enable-static");
 
+        if !self.cflags.is_empty() {
+            cmd.env("CFLAGS", &self.cflags);
+        }
+
+        if !self.cxxflags.is_empty() {
+            cmd.env("CXXFLAGS", &self.cxxflags);
+        }
+
         for &(ref kind, ref k, ref v) in &self.options {
             let mut os = OsString::from("--");
             match *kind {
