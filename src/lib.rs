@@ -59,6 +59,7 @@ pub struct Config {
     path: PathBuf,
     cflags: OsString,
     cxxflags: OsString,
+    ldflags: OsString,
     options: Vec<(Kind, OsString, Option<OsString>)>,
     target: Option<String>,
     make_args: Option<Vec<String>>,
@@ -100,6 +101,7 @@ impl Config {
             path: env::current_dir().unwrap().join(path),
             cflags: OsString::new(),
             cxxflags: OsString::new(),
+            ldflags: OsString::new(),
             options: Vec::new(),
             make_args: None,
             make_targets: None,
@@ -158,6 +160,14 @@ impl Config {
     pub fn cxxflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.cxxflags.push(" ");
         self.cxxflags.push(flag.as_ref());
+        self
+    }
+
+    /// Adds a custom flag to pass down to the linker, supplementing those
+    /// that this library already passes.
+    pub fn ldflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
+        self.ldflags.push(" ");
+        self.ldflags.push(flag.as_ref());
         self
     }
 
@@ -291,6 +301,10 @@ impl Config {
 
         if !self.cxxflags.is_empty() {
             cmd.env("CXXFLAGS", &self.cxxflags);
+        }
+
+        if !self.ldflags.is_empty() {
+            cmd.env("LDFLAGS", &self.ldflags);
         }
 
         for &(ref kind, ref k, ref v) in &self.options {
