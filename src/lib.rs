@@ -56,6 +56,8 @@ enum Kind {
 
 /// Builder style configuration for a pending autotools build.
 pub struct Config {
+    enable_shared: bool,
+    enable_static: bool,
     path: PathBuf,
     cflags: OsString,
     cxxflags: OsString,
@@ -98,6 +100,8 @@ impl Config {
     /// at the path `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Config {
         Config {
+            enable_shared: false,
+            enable_static: true,
             path: env::current_dir().unwrap().join(path),
             cflags: OsString::new(),
             cxxflags: OsString::new(),
@@ -112,6 +116,30 @@ impl Config {
             reconfig: None,
             build_insource: false,
         }
+    }
+
+    /// Enables building as a shared library (`--enable-shared`).
+    pub fn enable_shared(&mut self) -> &mut Config {
+        self.enable_shared = true;
+        self
+    }
+
+    /// Disables building as a shared library (`--disable-shared`).
+    pub fn disable_shared(&mut self) -> &mut Config {
+        self.enable_shared = false;
+        self
+    }
+
+    /// Enables building as a static library (`--enable-static`).
+    pub fn enable_static(&mut self) -> &mut Config {
+        self.enable_static = true;
+        self
+    }
+
+    /// Disables building as a static library (`--disable-static`).
+    pub fn disable_static(&mut self) -> &mut Config {
+        self.enable_static = false;
+        self
     }
 
     /// Additional arguments to pass through to `make`.
@@ -292,8 +320,17 @@ impl Config {
         let mut cmd = Command::new(executable);
 
         cmd.arg(format!("--prefix={}", dst.display()));
-        // TODO: make it optional?
-        cmd.arg("--disable-shared").arg("--enable-static");
+        if self.enable_shared {
+            cmd.arg("--enable-shared");
+        } else {
+            cmd.arg("--disable-shared");
+        }
+
+        if self.enable_static {
+            cmd.arg("--enable-static");
+        } else {
+            cmd.arg("--disable-static");
+        }
 
         if !self.cflags.is_empty() {
             cmd.env("CFLAGS", &self.cflags);
