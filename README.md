@@ -2,6 +2,7 @@
 
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![dependency status](https://deps.rs/repo/github/lu-zero/autotools-rs/status.svg)](https://deps.rs/repo/github/lu-zero/autotools-rs)
+[![crates.io](https://img.shields.io/crates/v/autotools.svg?style=flat)](https://crates.io/crates/autotools)
 
 A build dependency to compile a native library that uses [autotools][1] or
 a compatible `configure` script + `make`.
