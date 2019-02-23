@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [build-dependencies]
-//! autotools = "0.1"
+//! autotools = "0.2"
 //! ```
 //!
 //! ## Usage
