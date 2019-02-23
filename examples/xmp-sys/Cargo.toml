@@ -8,7 +8,6 @@ edition = "2018"
 path = "lib.rs"
 
 [build-dependencies.autotools]
-version = "0.1"
 path = "../.."
 
 [build-dependencies.bindgen]
