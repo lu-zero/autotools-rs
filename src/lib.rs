@@ -10,9 +10,9 @@
 //! ```toml
 //! [build-dependencies]
 //! autotools = "0.1"
+//! ```
 //!
 //! ## Usage
-//!
 //!
 //! ```no_run
 //! use autotools;
@@ -155,22 +155,22 @@ impl Config {
         self
     }
 
-    /// --enable-<opt><=optarg>
+    /// Passes `--enable-<opt><=optarg>` to configure.
     pub fn enable<P: AsRef<OsStr>>(&mut self, opt: P, optarg: Option<P>) -> &mut Config {
         self.set_opt(Kind::Enable, opt, optarg)
     }
 
-    /// --disable-<opt><=optarg>
+    /// Passes `--disable-<opt><=optarg>` to configure.
     pub fn disable<P: AsRef<OsStr>>(&mut self, opt: P, optarg: Option<P>) -> &mut Config {
         self.set_opt(Kind::Disable, opt, optarg)
     }
 
-    /// --with-<opt><=optarg>
+    /// Passes `--with-<opt><=optarg>` to configure.
     pub fn with<P: AsRef<OsStr>>(&mut self, opt: P, optarg: Option<P>) -> &mut Config {
         self.set_opt(Kind::With, opt, optarg)
     }
 
-    /// --without-<opt><=optarg>
+    /// Passes `--without-<opt><=optarg>` to configure.
     pub fn without<P: AsRef<OsStr>>(&mut self, opt: P, optarg: Option<P>) -> &mut Config {
         self.set_opt(Kind::Without, opt, optarg)
     }
@@ -353,6 +353,7 @@ impl Config {
                 Kind::With => os.push("with"),
                 Kind::Without => os.push("without")
             };
+            os.push("-");
             os.push(k);
             if let &Some(ref v) = v {
                 os.push("=");
