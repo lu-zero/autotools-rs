@@ -63,6 +63,8 @@ pub struct Config {
     cxxflags: OsString,
     ldflags: OsString,
     options: Vec<(Kind, OsString, Option<OsString>)>,
+    free_options: Vec<(OsString, Option<OsString>)>,
+    free_host: Option<String>,
     target: Option<String>,
     make_args: Option<Vec<String>>,
     make_targets: Option<Vec<String>>,
@@ -107,6 +109,8 @@ impl Config {
             cxxflags: OsString::new(),
             ldflags: OsString::new(),
             options: Vec::new(),
+            free_options: Vec::new(),
+            free_host: None,
             make_args: None,
             make_targets: None,
             out_dir: None,
@@ -151,6 +155,14 @@ impl Config {
     fn set_opt<P: AsRef<OsStr>>(&mut self, kind: Kind, opt: P, optarg: Option<P>) -> &mut Config {
         let optarg = optarg.as_ref().map(|v| v.as_ref().to_owned());
         self.options.push((kind, opt.as_ref().to_owned(),
+                           optarg));
+        self
+    }
+
+    /// Passes `--<opt><=optarg>` to configure.
+    pub fn free_option<P: AsRef<OsStr>>(&mut self, opt: P, optarg: Option<P>) -> &mut Config {
+        let optarg = optarg.as_ref().map(|v| v.as_ref().to_owned());
+        self.free_options.push((opt.as_ref().to_owned(),
                            optarg));
         self
     }
@@ -208,12 +220,22 @@ impl Config {
         self
     }
 
-    /// Sets the host triple for this compilation.
+    /// Sets the Rust host triple for this compilation.
     ///
     /// This is automatically scraped from `$HOST` which is set for Cargo
     /// build scripts so it's not necessary to call this from a build script.
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.host = Some(host.to_string());
+        self
+    }
+
+    /// Sets the ./configure --host triple for this compilation.
+    ///
+    /// When cross-compiling, this will usually approximate what Rust calls the
+    /// target rather than what Rust calls the host. When not explicitly
+    /// set, we attempt to auto-compute this from the compiler path.
+    pub fn free_host(&mut self, host: &str) -> &mut Config {
+        self.free_host = Some(host.to_string());
         self
     }
 
@@ -290,7 +312,6 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
-
         let dst;
         let build;
 
@@ -319,7 +340,6 @@ impl Config {
         let executable = PathBuf::from(&self.path).join("configure");
         let mut cmd = Command::new(executable);
 
-        cmd.arg(format!("--host={}", host));
         cmd.arg(format!("--prefix={}", dst.display()));
         if self.enable_shared {
             cmd.arg("--enable-shared");
@@ -360,6 +380,25 @@ impl Config {
                 os.push(v);
             }
             cmd.arg(os);
+        }
+
+        for &(ref k, ref v) in &self.free_options {
+            let mut os = OsString::from("--");
+            os.push(k);
+            if let &Some(ref v) = v {
+                os.push("=");
+                os.push(v);
+            }
+            cmd.arg(os);
+        }
+
+        if let Some(ref host) = self.free_host {
+            cmd.arg(format!("--host={}", host));
+        } else {
+            let compiler_path = format!("--host={}", c_compiler.path().display());
+            if compiler_path.ends_with("-gcc") {
+                cmd.arg(&compiler_path[0..compiler_path.len() - 4]);
+            }
         }
 
         for &(ref k, ref v) in c_compiler.env().iter().chain(&self.env) {
