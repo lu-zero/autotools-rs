@@ -316,6 +316,7 @@ impl Config {
         let mut cmd = Command::new(executable);
 
         cmd.arg(format!("--host={}", host));
+        cmd.arg(format!("--target={}", target));
         cmd.arg(format!("--prefix={}", dst.display()));
         if self.enable_shared {
             cmd.arg("--enable-shared");
