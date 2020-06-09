@@ -425,6 +425,9 @@ impl Config {
             }
         }
 
+        cmd.env("CC", c_compiler.path().to_str().unwrap());
+        cmd.env("CXX", cxx_compiler.path().to_str().unwrap());
+
         for &(ref k, ref v) in c_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
         }
