@@ -296,16 +296,12 @@ impl Config {
         });
         let mut c_cfg = cc::Build::new();
         c_cfg.cargo_metadata(false)
-            .opt_level(0)
-            .debug(false)
             .target(&target)
             .warnings(false)
             .host(&host);
         let mut cxx_cfg = cc::Build::new();
         cxx_cfg.cargo_metadata(false)
             .cpp(true)
-            .opt_level(0)
-            .debug(false)
             .target(&target)
             .warnings(false)
             .host(&host);
