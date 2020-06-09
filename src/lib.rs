@@ -353,29 +353,33 @@ impl Config {
             cmd.arg("--disable-static");
         }
 
+        let mut cflags = c_compiler.cflags_env();
+        match env::var_os("CFLAGS") {
+            None => (),
+            Some(flags) => {
+                cflags.push(" ");
+                cflags.push(&flags);
+            }
+        }
         if !self.cflags.is_empty() {
-            match env::var_os("CFLAGS") {
-                None => cmd.env("CFLAGS", &self.cflags),
-                Some(flags) => {
-                    let mut os = OsString::from(flags);
-                    os.push(" ");
-                    os.push(&self.cflags);
-                    cmd.env("CFLAGS", &os)
-                }
-            };
+            cflags.push(" ");
+            cflags.push(&self.cflags);
         }
+        cmd.env("CFLAGS", cflags);
 
-        if !self.cxxflags.is_empty() {
-            match env::var_os("CXXFLAGS") {
-                None => cmd.env("CXXFLAGS", &self.cxxflags),
-                Some(flags) => {
-                    let mut os = OsString::from(flags);
-                    os.push(" ");
-                    os.push(&self.cxxflags);
-                    cmd.env("CXXFLAGS", &os)
-                }
-            };
+        let mut cxxflags = cxx_compiler.cflags_env();
+        match env::var_os("CXXFLAGS") {
+            None => (),
+            Some(flags) => {
+                cxxflags.push(" ");
+                cxxflags.push(&flags);
+            }
         }
+        if !self.cxxflags.is_empty() {
+            cxxflags.push(" ");
+            cxxflags.push(&self.cxxflags);
+        }
+        cmd.env("CXXFLAGS", cxxflags);
 
         if !self.ldflags.is_empty() {
             match env::var_os("LDFLAGS") {
