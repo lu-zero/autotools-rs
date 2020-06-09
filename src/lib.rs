@@ -396,7 +396,7 @@ impl Config {
             cmd.arg(format!("--host={}", host));
         } else {
             let compiler_path = format!("--host={}", c_compiler.path().display());
-            if compiler_path.ends_with("-gcc") {
+            if compiler_path != "--host=musl-gcc" && compiler_path.ends_with("-gcc") {
                 cmd.arg(&compiler_path[0..compiler_path.len() - 4]);
             }
         }
