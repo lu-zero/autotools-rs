@@ -354,15 +354,39 @@ impl Config {
         }
 
         if !self.cflags.is_empty() {
-            cmd.env("CFLAGS", &self.cflags);
+            match env::var_os("CFLAGS") {
+                None => cmd.env("CFLAGS", &self.cflags),
+                Some(flags) => {
+                    let mut os = OsString::from(flags);
+                    os.push(" ");
+                    os.push(&self.cflags);
+                    cmd.env("CFLAGS", &os)
+                }
+            };
         }
 
         if !self.cxxflags.is_empty() {
-            cmd.env("CXXFLAGS", &self.cxxflags);
+            match env::var_os("CXXFLAGS") {
+                None => cmd.env("CXXFLAGS", &self.cxxflags),
+                Some(flags) => {
+                    let mut os = OsString::from(flags);
+                    os.push(" ");
+                    os.push(&self.cxxflags);
+                    cmd.env("CXXFLAGS", &os)
+                }
+            };
         }
 
         if !self.ldflags.is_empty() {
-            cmd.env("LDFLAGS", &self.ldflags);
+            match env::var_os("LDFLAGS") {
+                None => cmd.env("LDFLAGS", &self.ldflags),
+                Some(flags) => {
+                    let mut os = OsString::from(flags);
+                    os.push(" ");
+                    os.push(&self.ldflags);
+                    cmd.env("LDFLAGS", &os)
+                }
+            };
         }
 
         for &(ref kind, ref k, ref v) in &self.options {
