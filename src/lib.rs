@@ -482,7 +482,7 @@ impl Config {
             cmd.env(k, v);
         }
 
-        run(cmd.current_dir(&build), "configure");
+        run_config(cmd.current_dir(&build), &build);
 
         // Build up the first make command to build the build system.
         let executable = env::var("MAKE").unwrap_or("make".to_owned());
@@ -532,6 +532,24 @@ impl Config {
 
     fn maybe_clear(&self, _dir: &Path) {
         // TODO: make clean?
+    }
+}
+
+fn run_config(cmd: &mut Command, path: &Path) {
+    println!("running: {:?}", cmd);
+    let status = match cmd.status() {
+        Ok(status) => status,
+        Err(ref e) if e.kind() == ErrorKind::NotFound => {
+            fail(&format!("failed to execute command: {}\nis `configure` not installed?",
+                          e));
+        }
+        Err(e) => fail(&format!("failed to execute command: {}", e)),
+    };
+    if !status.success() {
+        let executable = "cat".to_owned();
+        let mut cmd = Command::new(executable);
+        cmd.current_dir(path);
+        return run(cmd.arg("config.log"), "cat config.log");
     }
 }
 
