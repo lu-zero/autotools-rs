@@ -297,6 +297,11 @@ impl Config {
     /// values. Setting those environment variables here will overwrite the
     /// external values, and will also discard any flags determined by the chosen
     /// compiler.
+    ///
+    /// `autotools::Config` will automatically pass `$CC` and `$CXX` values to
+    /// the `configure` script based on the chosen compiler. Setting those
+    /// variables here will override, and interferes with other parts of this
+    /// library, so is not recommended.
     pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Config
         where K: AsRef<OsStr>,
               V: AsRef<OsStr>,
