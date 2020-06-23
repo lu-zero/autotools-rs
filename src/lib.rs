@@ -220,6 +220,10 @@ impl Config {
 
     /// Adds a custom flag to pass down to the C compiler, supplementing those
     /// that this library already passes.
+    ///
+    /// Default flags for the chosen compiler have lowest priority, then any
+    /// flags from the environment variable `$CFLAGS`, then any flags specified
+    /// with this method.
     pub fn cflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.cflags.push(" ");
         self.cflags.push(flag.as_ref());
@@ -228,6 +232,10 @@ impl Config {
 
     /// Adds a custom flag to pass down to the C++ compiler, supplementing those
     /// that this library already passes.
+    ///
+    /// Default flags for the chosen compiler have lowest priority, then any
+    /// flags from the environment variable `$CXXFLAGS`, then any flags specified
+    /// with this method.
     pub fn cxxflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.cxxflags.push(" ");
         self.cxxflags.push(flag.as_ref());
@@ -236,6 +244,9 @@ impl Config {
 
     /// Adds a custom flag to pass down to the linker, supplementing those
     /// that this library already passes.
+    ///
+    /// Flags from the environment variable `$LDFLAGS` have lowest priority,
+    /// then any flags specified with this method.
     pub fn ldflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.ldflags.push(" ");
         self.ldflags.push(flag.as_ref());
@@ -277,6 +288,15 @@ impl Config {
 
     /// Configure an environment variable for the `configure && make` processes
     /// spawned by this crate in the `build` step.
+    ///
+    /// If you want to set `$CFLAGS`, `$CXXFLAGS`, or `$LDFLAGS`, consider using the
+    /// [cflag](#method.cflag),
+    /// [cxxflag](#method.cxxflag), or
+    /// [ldflag](#method.ldflag)
+    /// methods instead, which will append to any external
+    /// values. Setting those environment variables here will overwrite the
+    /// external values, and will also discard any flags determined by the chosen
+    /// compiler.
     pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Config
         where K: AsRef<OsStr>,
               V: AsRef<OsStr>,
