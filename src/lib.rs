@@ -56,6 +56,43 @@ enum Kind {
 }
 
 /// Builder style configuration for a pending autotools build.
+///
+/// # Note
+///
+/// Note that `host` and `target` have different meanings for Rust
+/// than for Gnu autotools. For Rust, the "host" machine is the one where the
+/// compiler is running, and the "target" machine is the one where the
+/// compiled artifact (library or binary) will be executed.
+/// For Gnu autotools, the machine where the compiler is running is called
+/// the "build" machine; the one where the compiled artifact will be
+/// executed is called the "host" machine; and if the compiled artifact
+/// happens to be a cross-compiler, it will generate code for a "target"
+/// machine; otherwise "target" will coincide with "host".
+///
+/// Hence Rust's `host` corresponds to Gnu autotools' "build" and Rust's
+/// `target` corresponds to their "host" (though the relevant names will sometimes
+/// differ slightly).
+///
+/// The `host` and `target` methods on this package's `autotools::Config` structure (as well as
+/// the `$HOST` and `$TARGET` variables set by cargo) are understood with their
+/// Rust meaning.
+///
+/// When cross-compiling, we try to calculate automatically what Gnu autotools will expect for its
+/// "host" value, and supply that to the `configure` script using a `--host="..."` argument. If the
+/// auto-calculation is incorrect, you can override it with the `config_option` method, like this:
+///
+/// ```no_run
+/// use autotools;
+///
+/// // Builds the project in the directory located in `libfoo`, installing it
+/// // into $OUT_DIR
+/// let mut cfg = autotools::Config::new("libfoo_source_directory");
+/// cfg.config_option("host", Some("i686-pc-windows-gnu"));
+/// let dst = cfg.build();
+///
+/// println!("cargo:rustc-link-search=native={}", dst.display());
+/// println!("cargo:rustc-link-lib=static=foo");
+/// ```
 pub struct Config {
     enable_shared: bool,
     enable_static: bool,
@@ -209,6 +246,9 @@ impl Config {
     ///
     /// This is automatically scraped from `$TARGET` which is set for Cargo
     /// build scripts so it's not necessary to call this from a build script.
+    ///
+    /// See [Note](#main) on the differences between Rust's and autotools'
+    /// interpretation of "target" (this method assumes the former).
     pub fn target(&mut self, target: &str) -> &mut Config {
         self.target = Some(target.to_string());
         self
@@ -218,6 +258,9 @@ impl Config {
     ///
     /// This is automatically scraped from `$HOST` which is set for Cargo
     /// build scripts so it's not necessary to call this from a build script.
+    ///
+    /// See [Note](#main) on the differences between Rust's and autotools'
+    /// interpretation of "host" (this method assumes the former).
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.host = Some(host.to_string());
         self
