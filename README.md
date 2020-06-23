@@ -14,7 +14,7 @@ the API tries to be as similar as possible to it.
 ``` toml
 # Cargo.toml
 [build-dependencies]
-autotools = "0.2"
+autotools = "0.3"
 ```
 
 ``` rust
