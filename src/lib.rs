@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [build-dependencies]
-//! autotools = "0.2"
+//! autotools = "0.3"
 //! ```
 //!
 //! ## Usage
@@ -56,6 +56,43 @@ enum Kind {
 }
 
 /// Builder style configuration for a pending autotools build.
+///
+/// # Note
+///
+/// Note that `host` and `target` have different meanings for Rust
+/// than for Gnu autotools. For Rust, the "host" machine is the one where the
+/// compiler is running, and the "target" machine is the one where the
+/// compiled artifact (library or binary) will be executed.
+/// For Gnu autotools, the machine where the compiler is running is called
+/// the "build" machine; the one where the compiled artifact will be
+/// executed is called the "host" machine; and if the compiled artifact
+/// happens to be a cross-compiler, it will generate code for a "target"
+/// machine; otherwise "target" will coincide with "host".
+///
+/// Hence Rust's `host` corresponds to Gnu autotools' "build" and Rust's
+/// `target` corresponds to their "host" (though the relevant names will sometimes
+/// differ slightly).
+///
+/// The `host` and `target` methods on this package's `autotools::Config` structure (as well as
+/// the `$HOST` and `$TARGET` variables set by cargo) are understood with their
+/// Rust meaning.
+///
+/// When cross-compiling, we try to calculate automatically what Gnu autotools will expect for its
+/// "host" value, and supply that to the `configure` script using a `--host="..."` argument. If the
+/// auto-calculation is incorrect, you can override it with the `config_option` method, like this:
+///
+/// ```no_run
+/// use autotools;
+///
+/// // Builds the project in the directory located in `libfoo`, installing it
+/// // into $OUT_DIR
+/// let mut cfg = autotools::Config::new("libfoo_source_directory");
+/// cfg.config_option("host", Some("i686-pc-windows-gnu"));
+/// let dst = cfg.build();
+///
+/// println!("cargo:rustc-link-search=native={}", dst.display());
+/// println!("cargo:rustc-link-lib=static=foo");
+/// ```
 pub struct Config {
     enable_shared: bool,
     enable_static: bool,
@@ -183,6 +220,10 @@ impl Config {
 
     /// Adds a custom flag to pass down to the C compiler, supplementing those
     /// that this library already passes.
+    ///
+    /// Default flags for the chosen compiler have lowest priority, then any
+    /// flags from the environment variable `$CFLAGS`, then any flags specified
+    /// with this method.
     pub fn cflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.cflags.push(" ");
         self.cflags.push(flag.as_ref());
@@ -191,6 +232,10 @@ impl Config {
 
     /// Adds a custom flag to pass down to the C++ compiler, supplementing those
     /// that this library already passes.
+    ///
+    /// Default flags for the chosen compiler have lowest priority, then any
+    /// flags from the environment variable `$CXXFLAGS`, then any flags specified
+    /// with this method.
     pub fn cxxflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.cxxflags.push(" ");
         self.cxxflags.push(flag.as_ref());
@@ -199,6 +244,9 @@ impl Config {
 
     /// Adds a custom flag to pass down to the linker, supplementing those
     /// that this library already passes.
+    ///
+    /// Flags from the environment variable `$LDFLAGS` have lowest priority,
+    /// then any flags specified with this method.
     pub fn ldflag<P: AsRef<OsStr>>(&mut self, flag: P) -> &mut Config {
         self.ldflags.push(" ");
         self.ldflags.push(flag.as_ref());
@@ -209,6 +257,9 @@ impl Config {
     ///
     /// This is automatically scraped from `$TARGET` which is set for Cargo
     /// build scripts so it's not necessary to call this from a build script.
+    ///
+    /// See [Note](#main) on the differences between Rust's and autotools'
+    /// interpretation of "target" (this method assumes the former).
     pub fn target(&mut self, target: &str) -> &mut Config {
         self.target = Some(target.to_string());
         self
@@ -218,6 +269,9 @@ impl Config {
     ///
     /// This is automatically scraped from `$HOST` which is set for Cargo
     /// build scripts so it's not necessary to call this from a build script.
+    ///
+    /// See [Note](#main) on the differences between Rust's and autotools'
+    /// interpretation of "host" (this method assumes the former).
     pub fn host(&mut self, host: &str) -> &mut Config {
         self.host = Some(host.to_string());
         self
@@ -234,6 +288,20 @@ impl Config {
 
     /// Configure an environment variable for the `configure && make` processes
     /// spawned by this crate in the `build` step.
+    ///
+    /// If you want to set `$CFLAGS`, `$CXXFLAGS`, or `$LDFLAGS`, consider using the
+    /// [cflag](#method.cflag),
+    /// [cxxflag](#method.cxxflag), or
+    /// [ldflag](#method.ldflag)
+    /// methods instead, which will append to any external
+    /// values. Setting those environment variables here will overwrite the
+    /// external values, and will also discard any flags determined by the chosen
+    /// compiler.
+    ///
+    /// `autotools::Config` will automatically pass `$CC` and `$CXX` values to
+    /// the `configure` script based on the chosen compiler. Setting those
+    /// variables here will override, and interferes with other parts of this
+    /// library, so is not recommended.
     pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Config
         where K: AsRef<OsStr>,
               V: AsRef<OsStr>,
@@ -414,7 +482,7 @@ impl Config {
             cmd.env(k, v);
         }
 
-        run(cmd.current_dir(&build), "configure");
+        run_config(cmd.current_dir(&build), &build);
 
         // Build up the first make command to build the build system.
         let executable = env::var("MAKE").unwrap_or("make".to_owned());
@@ -464,6 +532,24 @@ impl Config {
 
     fn maybe_clear(&self, _dir: &Path) {
         // TODO: make clean?
+    }
+}
+
+fn run_config(cmd: &mut Command, path: &Path) {
+    println!("running: {:?}", cmd);
+    let status = match cmd.status() {
+        Ok(status) => status,
+        Err(ref e) if e.kind() == ErrorKind::NotFound => {
+            fail(&format!("failed to execute command: {}\nis `configure` not installed?",
+                          e));
+        }
+        Err(e) => fail(&format!("failed to execute command: {}", e)),
+    };
+    if !status.success() {
+        let executable = "cat".to_owned();
+        let mut cmd = Command::new(executable);
+        cmd.current_dir(path);
+        return run(cmd.arg("config.log"), "cat config.log");
     }
 }
 
