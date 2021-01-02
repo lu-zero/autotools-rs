@@ -11,6 +11,10 @@ a compatible `configure` script + `make`.
 It is based on [cmake-rs](https://github.com/alexcrichton/cmake-rs) and
 the API tries to be as similar as possible to it.
 
+For Emscripten targets like "wasm32-unknown-emscripten", `configure` and
+`make` invocations are passed as arguments to `emconfigure` and `emmake`
+respectively as described in the [Emscripten docs](https://emscripten.org/docs/compiling/Building-Projects.html#integrating-with-a-build-system).
+
 ``` toml
 # Cargo.toml
 [build-dependencies]

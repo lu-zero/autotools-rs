@@ -317,8 +317,16 @@ impl Config {
             run(cmd.arg(opts), "autoreconf");
         }
 
-        let executable = PathBuf::from(&self.path).join("configure");
-        let mut cmd = Command::new(executable);
+        let mut cmd;
+        let mut program = "configure";
+        let executable = PathBuf::from(&self.path).join(program);
+        if target.contains("emscripten") {
+            program = "emconfigure";
+            cmd = Command::new(program);
+            cmd.arg(executable);
+        } else {
+            cmd = Command::new(executable);
+        }
 
         cmd.arg(format!("--prefix={}", dst.display()));
         if self.enable_shared {
@@ -414,11 +422,18 @@ impl Config {
             cmd.env(k, v);
         }
 
-        run(cmd.current_dir(&build), "configure");
+        run(cmd.current_dir(&build), program);
 
         // Build up the first make command to build the build system.
-        let executable = env::var("MAKE").unwrap_or("make".to_owned());
-        let mut cmd = Command::new(executable);
+        program = "make";
+        let executable = env::var("MAKE").unwrap_or(program.to_owned());
+        if target.contains("emscripten") {
+            program = "emmake";
+            cmd = Command::new("emmake");
+            cmd.arg(executable);
+        } else {
+            cmd = Command::new(executable);
+        }
         cmd.current_dir(&build);
 
         let mut makeflags = None;
@@ -456,7 +471,7 @@ impl Config {
 
         run(cmd.args(make_targets)
                 .args(&make_args)
-                .current_dir(&build), "make");
+                .current_dir(&build), program);
 
         println!("cargo:root={}", dst.display());
         dst
