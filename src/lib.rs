@@ -40,6 +40,7 @@
 
 extern crate cc;
 
+use std::collections::HashSet;
 use std::env;
 use std::ffi::{OsString, OsStr};
 use std::fs;
@@ -72,6 +73,7 @@ pub struct Config {
     env: Vec<(OsString, OsString)>,
     reconfig: Option<OsString>,
     build_insource: bool,
+    forbidden_args: HashSet<String>,
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -116,6 +118,7 @@ impl Config {
             env: Vec::new(),
             reconfig: None,
             build_insource: false,
+            forbidden_args: HashSet::new(),
         }
     }
 
@@ -266,6 +269,14 @@ impl Config {
         self
     }
 
+    /// Forbid an argument from being added to the configure command.
+    ///
+    /// This can be used to account for non-standard configure scripts.
+    pub fn forbid<T: ToString>(&mut self, arg: T) -> &mut Config {
+        self.forbidden_args.insert(arg.to_string());
+        self
+    }
+
     /// Run this configuration, compiling the library with all the configured
     /// options.
     ///
@@ -319,26 +330,27 @@ impl Config {
 
         let mut cmd;
         let mut program = "configure";
+        let mut args: Vec<String> = Vec::new();
         let executable = PathBuf::from(&self.path).join(program);
         if target.contains("emscripten") {
             program = "emconfigure";
             cmd = Command::new(program);
-            cmd.arg(executable);
+            args.push(executable.to_string_lossy().to_string());
         } else {
             cmd = Command::new(executable);
         }
 
-        cmd.arg(format!("--prefix={}", dst.display()));
+        args.push(format!("--prefix={}", dst.display()));
         if self.enable_shared {
-            cmd.arg("--enable-shared");
+            args.push("--enable-shared".to_string());
         } else {
-            cmd.arg("--disable-shared");
+            args.push("--disable-shared".to_string());
         }
 
         if self.enable_static {
-            cmd.arg("--enable-static");
+            args.push("--enable-static".to_string());
         } else {
-            cmd.arg("--disable-static");
+            args.push("--disable-static".to_string());
         }
 
         let mut cflags = c_compiler.cflags_env();
@@ -401,13 +413,13 @@ impl Config {
                 os.push("=");
                 os.push(v);
             }
-            cmd.arg(os);
+            args.push(os.to_string_lossy().to_string());
         }
 
         if !config_host {
             let compiler_path = format!("--host={}", c_compiler.path().display());
             if compiler_path != "--host=musl-gcc" && compiler_path.ends_with("-gcc") {
-                cmd.arg(&compiler_path[0..compiler_path.len() - 4]);
+                args.push(compiler_path[0..compiler_path.len() - 4].to_string());
             }
         }
 
@@ -421,6 +433,13 @@ impl Config {
         for &(ref k, ref v) in cxx_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
         }
+
+        cmd.args(args.iter().filter(|x| {
+            !self.forbidden_args.contains(match x.find("=") {
+                Some(idx) => x.split_at(idx).0,
+                None => x.as_str(),
+            })
+        }));
 
         run(cmd.current_dir(&build), program);
 
