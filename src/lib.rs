@@ -47,6 +47,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 
 enum Kind {
     Enable,
@@ -140,6 +141,43 @@ impl Config {
     /// Creates a new blank set of configuration to build the project specified
     /// at the path `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Config {
+        // test that `sh` is present and does what we want--see `new_command` below
+        // sidestep the whole "execute permission" thing by only checking shebang functionality on Windows
+        let arg: String = if cfg!(windows) {
+            let out_dir = env::var_os("OUT_DIR").expect("missing OUT_DIR");
+            let path = PathBuf::from(out_dir).join("test.sh");
+            fs::write(&path, "#!/bin/sh\ntrue\n").expect("can't write to OUT_DIR");
+            // escape path (double the escape for double the fun!)
+            // (seriously it will break otherwise)
+            path.to_str()
+                .expect("invalid UTF-8 in path")
+                .escape_default()
+                .flat_map(char::escape_default)
+                .collect()
+        } else {
+            "true".into()
+        };
+
+        if let Ok(output) = Command::new("sh")
+            .arg("-c")
+            .arg(format!("echo test; {}", arg))
+            .output()
+        {
+            if !output.status.success() {
+                // Print `sh` output for debugging
+                println!("{}", str::from_utf8(&output.stdout).unwrap_or_default());
+                eprintln!("{}", str::from_utf8(&output.stderr).unwrap_or_default());
+
+                if cfg!(windows) && output.stdout == b"test\n" {
+                    fail("`sh` does not parse shebangs")
+                } else {
+                    fail("`sh` is not standard or is otherwise broken")
+                }
+            }
+        } else {
+            fail("`sh` is required to run `configure`")
+        }
+
         Config {
             enable_shared: false,
             enable_static: true,
@@ -329,7 +367,6 @@ impl Config {
         self
     }
 
-
     /// Build the library in-source.
     ///
     /// This is generally not recommended, but can be required for libraries that
@@ -400,7 +437,7 @@ impl Config {
         // TODO: PKG_CONFIG_PATH
         if let Some(ref opts) = self.reconfig {
             let executable = "autoreconf".to_owned();
-            let mut cmd = Command::new(executable);
+            let mut cmd = new_command(executable);
             cmd.current_dir(&self.path);
 
             run(cmd.arg(opts), "autoreconf");
@@ -412,17 +449,37 @@ impl Config {
         let executable = PathBuf::from(&self.path).join(program);
         if target.contains("emscripten") {
             program = "emconfigure";
-            cmd = Command::new(program);
+            cmd = new_command(program);
             args.push(executable.to_string_lossy().to_string());
         } else {
-            cmd = Command::new(executable);
+            cmd = new_command(executable);
         }
-
 
         // TODO: discuss whether we should replace this 
         // with DESTDIR or something
         args.push(format!("--prefix={}", dst.display()));
-        
+
+        if cfg!(windows) {
+            // `configure` is hardcoded to fail on characters it deems "unsafe" found in a path--
+            // including '\', i.e. the Windows path separator. It will happily pull a Windows-style path
+            // for `srcdir` on its own, and then immediately complain about it. Hopefully we're building
+            // in a Cygwin/MSYS environment that can give us a path that will make it happy.
+            let cygpath = Command::new("cygpath")
+                .args(["--unix", "--codepage=UTF8"])
+                .args([&dst, &self.path])
+                .output();
+            if let Ok(output) = cygpath {
+                if output.status.success() {
+                    let output = String::from_utf8(output.stdout).unwrap();
+                    let mut lines = output.lines();
+                    let prefix = lines.next().unwrap();
+                    let srcdir = lines.next().unwrap();
+                    args.push(format!("--prefix={}", prefix));
+                    args.push(format!("--srcdir={}", srcdir));
+                }
+            }
+        }
+
         if self.enable_shared {
             args.push("--enable-shared".to_string());
         } else {
@@ -559,10 +616,10 @@ impl Config {
         let executable = env::var("MAKE").unwrap_or(program.to_owned());
         if target.contains("emscripten") {
             program = "emmake";
-            cmd = Command::new("emmake");
+            cmd = new_command("emmake");
             cmd.arg(executable);
         } else {
-            cmd = Command::new(executable);
+            cmd = new_command(executable);
         }
         cmd.current_dir(&build);
 
@@ -625,6 +682,23 @@ fn run(cmd: &mut Command, program: &str) {
     if !status.success() {
         fail(&format!("command did not execute successfully, got: {}", status));
     }
+}
+
+// Windows users cannot execute `./configure` (shell script) or `autoreconf` (Perl script) directly
+// like everyone else in the world can. However, the Cygwin compatibility layer handles the task of
+// reading the shebang of any file an application tries to "execute" (in lieu of a kernel doing the same),
+// and transparently invokes the referenced executable just like a Unix user would expect.
+//
+// Long story short, this function assumes two things:
+// 1. `sh` exists on PATH (kind of hard to run `./configure` without that, huh)
+// 2. If on Windows, `sh` lives in magical Cygwin land and can parse shebangs for us (thus preserving
+//    functionality between Windows and everyone else)
+// Prepare a process::Command wherein the program is invoked within `sh`.
+// The presence of `sh` is verified in Config::new above.
+fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
+    let mut cmd = Command::new("sh");
+    cmd.args(["-c", "exec \"$0\" \"$@\""]).arg(program);
+    cmd
 }
 
 fn getenv_unwrap(v: &str) -> String {
