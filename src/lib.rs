@@ -111,6 +111,7 @@ pub struct Config {
     reconfig: Option<OsString>,
     build_insource: bool,
     forbidden_args: HashSet<String>,
+    fast_build: bool,
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -156,6 +157,7 @@ impl Config {
             reconfig: None,
             build_insource: false,
             forbidden_args: HashSet::new(),
+            fast_build: false,
         }
     }
 
@@ -327,6 +329,7 @@ impl Config {
         self
     }
 
+
     /// Build the library in-source.
     ///
     /// This is generally not recommended, but can be required for libraries that
@@ -342,6 +345,13 @@ impl Config {
     /// This can be used to account for non-standard configure scripts.
     pub fn forbid<T: ToString>(&mut self, arg: T) -> &mut Config {
         self.forbidden_args.insert(arg.to_string());
+        self
+    }
+
+    /// Enable fast building (which skips over configure if there is no)
+    /// change in the configuration parameters.
+    pub fn fast_build(&mut self, fast: bool) -> &mut Config {
+        self.fast_build = fast;
         self
     }
 
@@ -408,7 +418,11 @@ impl Config {
             cmd = Command::new(executable);
         }
 
+
+        // TODO: discuss whether we should replace this 
+        // with DESTDIR or something
         args.push(format!("--prefix={}", dst.display()));
+        
         if self.enable_shared {
             args.push("--enable-shared".to_string());
         } else {
@@ -509,8 +523,37 @@ impl Config {
             })
         }));
 
-        run(cmd.current_dir(&build), program);
+        // attempt to see if we were previously configured with the same flags
+        // if so, then we can skip running configure
+        let run_config = if self.fast_build {
+            let config_status_file = build.join("config.status");
+            let config_params_file = build.join("configure.prev");
+            let makefile = build.join("Makefile");
+            if config_status_file.exists() &&
+               config_params_file.exists() &&
+               makefile.exists()
+            {
+                    let mut config_params = String::new();
+                    let mut f = fs::File::open(&config_params_file).unwrap();
+                    std::io::Read::read_to_string(&mut f, &mut config_params).unwrap();
+                    config_params != format!("{:?}", cmd)
+            }
+            else {
+                true
+            }
+        } else {
+            true
+        };
 
+        if run_config {
+            let config_params_file = build.join("configure.prev");
+            let mut f = fs::File::create(&config_params_file).unwrap();
+            std::io::Write::write_all(&mut f, format!("{:?}", cmd).as_bytes()).unwrap();
+            run(cmd.current_dir(&build), program);
+        }
+
+        // interestingly if configure needs to be rerun because of any 
+        // dependencies the make will use config.status to run it anyhow.
         // Build up the first make command to build the build system.
         program = "make";
         let executable = env::var("MAKE").unwrap_or(program.to_owned());
