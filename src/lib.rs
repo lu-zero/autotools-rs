@@ -112,6 +112,8 @@ pub struct Config {
     build_insource: bool,
     forbidden_args: HashSet<String>,
     fast_build: bool,
+    prefix: Option<PathBuf>,
+    use_destdir: bool,
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -158,7 +160,24 @@ impl Config {
             build_insource: false,
             forbidden_args: HashSet::new(),
             fast_build: false,
+            prefix: None,
+            use_destdir: false,
         }
+    }
+
+    /// Uses DESTDIR to perform the installation.
+    ///
+    /// This is more canonical and portable than using `--prefix`
+    /// and `--exec-prefix` in the configure script.
+    pub fn use_destdir(&mut self, use_destdir: bool) -> &mut Config {
+        self.use_destdir = use_destdir;
+        self
+    }
+
+    /// Sets the `--prefix` option for the `configure` script.
+    pub fn prefix<P: AsRef<Path>>(&mut self, path: P) -> &mut Config {
+        self.prefix = Some(path.as_ref().to_path_buf());
+        self
     }
 
     /// Enables building as a shared library (`--enable-shared`).
@@ -186,8 +205,15 @@ impl Config {
     }
 
     /// Additional arguments to pass through to `make`.
-    pub fn make_args(&mut self, flags: Vec<String>) -> &mut Config {
-        self.make_args = Some(flags);
+    pub fn make_args(&mut self, flags: Vec<&str>) -> &mut Config {
+        let flags = flags.iter().map(|s| s.to_string()).collect();
+        if self.make_args.is_none() {
+            self.make_args = Some(flags);
+        } else {
+            let mut args = self.make_args.take().unwrap();
+            args.extend(flags);
+            self.make_args = Some(args);
+        }
         self
     }
 
@@ -308,8 +334,7 @@ impl Config {
     /// variables here will override, and interferes with other parts of this
     /// library, so is not recommended.
     pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Config
-        where K: AsRef<OsStr>,
-              V: AsRef<OsStr>,
+        where K: AsRef<OsStr>, V: AsRef<OsStr>,
     {
         self.env.push((key.as_ref().to_owned(), value.as_ref().to_owned()));
         self
@@ -421,7 +446,13 @@ impl Config {
 
         // TODO: discuss whether we should replace this 
         // with DESTDIR or something
-        args.push(format!("--prefix={}", dst.display()));
+        if !self.use_destdir {
+            args.push(format!("--prefix={}",
+                self.prefix.as_ref().unwrap_or(&dst).display()));
+        }
+        else {
+            args.push("--prefix=/usr".to_string());
+        }
         
         if self.enable_shared {
             args.push("--enable-shared".to_string());
@@ -580,11 +611,11 @@ impl Config {
                 // mingw32-make which doesn't work with our jobserver
                 // bsdmake also does not work with our job server
                 Some(ref s) if !(cfg!(windows) ||
-                                 cfg!(target_os = "openbsd") ||
-                                 cfg!(target_os = "netbsd") ||
-                                 cfg!(target_os = "freebsd") ||
-                                 cfg!(target_os = "bitrig") ||
-                                 cfg!(target_os = "dragonflybsd")
+                    cfg!(target_os = "openbsd") ||
+                    cfg!(target_os = "netbsd") ||
+                    cfg!(target_os = "freebsd") ||
+                    cfg!(target_os = "bitrig") ||
+                    cfg!(target_os = "dragonflybsd")
                 ) => makeflags = Some(s.clone()),
 
                 // This looks like `make`, let's hope it understands `-jN`.
@@ -599,6 +630,9 @@ impl Config {
             cmd.env("MAKEFLAGS", flags);
         }
 
+        if self.use_destdir {
+            cmd.arg(format!("DESTDIR={}", dst.display()));
+        }
         run(cmd.args(make_targets)
                 .args(&make_args)
                 .current_dir(&build), program);
@@ -617,8 +651,9 @@ fn run(cmd: &mut Command, program: &str) {
     let status = match cmd.status() {
         Ok(status) => status,
         Err(ref e) if e.kind() == ErrorKind::NotFound => {
-            fail(&format!("failed to execute command: {}\nis `{}` not installed?",
-                          e, program));
+            fail(&format!(
+                "failed to execute command: {}\nis `{}` not installed?", 
+            e, program));
         }
         Err(e) => fail(&format!("failed to execute command: {}", e)),
     };
