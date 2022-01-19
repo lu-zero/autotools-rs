@@ -556,7 +556,7 @@ impl Config {
         }
 
         let cc_path = c_compiler.path().to_str().unwrap();
-        let cxx_path = c_compiler.path().to_str().unwrap();
+        let cxx_path = cxx_compiler.path().to_str().unwrap();
 
         if !config_host && cc_path != "musl-gcc" {
             let host = cc_path.strip_suffix("-cc").or_else(|| cc_path.strip_suffix("-gcc"));
