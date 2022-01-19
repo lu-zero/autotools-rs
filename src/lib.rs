@@ -555,15 +555,18 @@ impl Config {
             args.push(os.to_string_lossy().to_string());
         }
 
-        if !config_host {
-            let compiler_path = format!("--host={}", c_compiler.path().display());
-            if compiler_path != "--host=musl-gcc" && compiler_path.ends_with("-gcc") {
-                args.push(compiler_path[0..compiler_path.len() - 4].to_string());
+        let cc_path = c_compiler.path().to_str().unwrap();
+        let cxx_path = c_compiler.path().to_str().unwrap();
+
+        if !config_host && cc_path != "musl-gcc" {
+            let host = cc_path.strip_suffix("-cc").or_else(|| cc_path.strip_suffix("-gcc"));
+            if let Some(host) = host {
+                args.push(format!("--host={}", host));
             }
         }
 
-        cmd.env("CC", c_compiler.path().to_str().unwrap());
-        cmd.env("CXX", cxx_compiler.path().to_str().unwrap());
+        cmd.env("CC", cc_path);
+        cmd.env("CXX", cxx_path);
 
         for &(ref k, ref v) in c_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
