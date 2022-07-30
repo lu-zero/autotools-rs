@@ -42,7 +42,7 @@ extern crate cc;
 
 use std::collections::HashSet;
 use std::env;
-use std::ffi::{OsString, OsStr};
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -132,9 +132,7 @@ pub struct Config {
 /// ```
 ///
 pub fn build<P: AsRef<Path>>(path: P) -> PathBuf {
-    Config::new(path.as_ref())
-        .build()
-
+    Config::new(path.as_ref()).build()
 }
 
 impl Config {
@@ -231,8 +229,7 @@ impl Config {
 
     fn set_opt<P: AsRef<OsStr>>(&mut self, kind: Kind, opt: P, optarg: Option<P>) -> &mut Config {
         let optarg = optarg.as_ref().map(|v| v.as_ref().to_owned());
-        self.options.push((kind, opt.as_ref().to_owned(),
-                           optarg));
+        self.options.push((kind, opt.as_ref().to_owned(), optarg));
         self
     }
 
@@ -346,10 +343,12 @@ impl Config {
     /// variables here will override, and interferes with other parts of this
     /// library, so is not recommended.
     pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Config
-        where K: AsRef<OsStr>,
-              V: AsRef<OsStr>,
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
     {
-        self.env.push((key.as_ref().to_owned(), value.as_ref().to_owned()));
+        self.env
+            .push((key.as_ref().to_owned(), value.as_ref().to_owned()));
         self
     }
 
@@ -363,7 +362,9 @@ impl Config {
     ///
     /// If this function is not called, the build will default to `make install`.
     pub fn make_target(&mut self, make_target: &str) -> &mut Config {
-        self.make_targets.get_or_insert_with(Vec::new).push(make_target.to_owned());
+        self.make_targets
+            .get_or_insert_with(Vec::new)
+            .push(make_target.to_owned());
         self
     }
 
@@ -392,25 +393,41 @@ impl Config {
         self
     }
 
-    /// Run this configuration, compiling the library with all the configured
-    /// options.
+    fn get_paths(&self) -> (PathBuf, PathBuf) {
+        if self.build_insource {
+            let dst = self.path.clone();
+            let build = dst.clone();
+            (dst, build)
+        } else {
+            let dst = self
+                .out_dir
+                .clone()
+                .unwrap_or_else(|| PathBuf::from(getenv_unwrap("OUT_DIR")));
+            let build = dst.join("build");
+            self.maybe_clear(&build);
+            let _ = fs::create_dir(&build);
+            (dst, build)
+        }
+    }
+
+    /// Run this configuration
     ///
-    /// This will run both the build system generator command as well as the
-    /// command to build the library.
-    pub fn build(&mut self) -> PathBuf {
-        let target = self.target.clone().unwrap_or_else(|| {
-                getenv_unwrap("TARGET")
-        });
-        let host = self.host.clone().unwrap_or_else(|| {
-            getenv_unwrap("HOST")
-        });
+    /// This will run only the build system generator.
+    pub fn configure(&mut self) -> PathBuf {
+        let target = self
+            .target
+            .clone()
+            .unwrap_or_else(|| getenv_unwrap("TARGET"));
+        let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
         let mut c_cfg = cc::Build::new();
-        c_cfg.cargo_metadata(false)
+        c_cfg
+            .cargo_metadata(false)
             .target(&target)
             .warnings(false)
             .host(&host);
         let mut cxx_cfg = cc::Build::new();
-        cxx_cfg.cargo_metadata(false)
+        cxx_cfg
+            .cargo_metadata(false)
             .cpp(true)
             .target(&target)
             .warnings(false)
@@ -418,20 +435,7 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
-        let dst;
-        let build;
-
-        if self.build_insource {
-            dst = self.path.clone();
-            build = dst.clone();
-        } else {
-            dst = self.out_dir.clone().unwrap_or_else(|| {
-                PathBuf::from(getenv_unwrap("OUT_DIR"))
-            });
-            build = dst.join("build");
-            self.maybe_clear(&build);
-            let _ = fs::create_dir(&build);
-        }
+        let (dst, build) = self.get_paths();
 
         // TODO: env overrides?
         // TODO: PKG_CONFIG_PATH
@@ -455,7 +459,7 @@ impl Config {
             cmd = new_command(executable);
         }
 
-        // TODO: discuss whether we should replace this 
+        // TODO: discuss whether we should replace this
         // with DESTDIR or something
         args.push(format!("--prefix={}", dst.display()));
 
@@ -559,7 +563,9 @@ impl Config {
         let cxx_path = cxx_compiler.path().to_str().unwrap();
 
         if !config_host && cc_path != "musl-gcc" {
-            let host = cc_path.strip_suffix("-cc").or_else(|| cc_path.strip_suffix("-gcc"));
+            let host = cc_path
+                .strip_suffix("-cc")
+                .or_else(|| cc_path.strip_suffix("-gcc"));
             if let Some(host) = host {
                 args.push(format!("--host={}", host));
             }
@@ -589,16 +595,12 @@ impl Config {
             let config_status_file = build.join("config.status");
             let config_params_file = build.join("configure.prev");
             let makefile = build.join("Makefile");
-            if config_status_file.exists() &&
-               config_params_file.exists() &&
-               makefile.exists()
-            {
-                    let mut config_params = String::new();
-                    let mut f = fs::File::open(&config_params_file).unwrap();
-                    std::io::Read::read_to_string(&mut f, &mut config_params).unwrap();
-                    config_params != format!("{:?}", cmd)
-            }
-            else {
+            if config_status_file.exists() && config_params_file.exists() && makefile.exists() {
+                let mut config_params = String::new();
+                let mut f = fs::File::open(&config_params_file).unwrap();
+                std::io::Read::read_to_string(&mut f, &mut config_params).unwrap();
+                config_params != format!("{:?}", cmd)
+            } else {
                 true
             }
         } else {
@@ -612,10 +614,29 @@ impl Config {
             run(cmd.current_dir(&build), program);
         }
 
-        // interestingly if configure needs to be rerun because of any 
+        dst
+    }
+
+    /// Run this configuration, compiling the library with all the configured
+    /// options.
+    ///
+    /// This will run both the build system generator command as well as the
+    /// command to build the library.
+    pub fn build(&mut self) -> PathBuf {
+        self.configure();
+
+        let (dst, build) = self.get_paths();
+
+        let target = self
+            .target
+            .clone()
+            .unwrap_or_else(|| getenv_unwrap("TARGET"));
+
+        // interestingly if configure needs to be rerun because of any
         // dependencies the make will use config.status to run it anyhow.
         // Build up the first make command to build the build system.
-        program = "make";
+        let mut program = "make";
+        let mut cmd;
         let executable = env::var("MAKE").unwrap_or(program.to_owned());
         if target.contains("emscripten") {
             program = "emmake";
@@ -639,13 +660,16 @@ impl Config {
                 // On Windows, we could be invoking make instead of
                 // mingw32-make which doesn't work with our jobserver
                 // bsdmake also does not work with our job server
-                Some(ref s) if !(cfg!(windows) ||
-                                 cfg!(target_os = "openbsd") ||
-                                 cfg!(target_os = "netbsd") ||
-                                 cfg!(target_os = "freebsd") ||
-                                 cfg!(target_os = "bitrig") ||
-                                 cfg!(target_os = "dragonflybsd")
-                ) => makeflags = Some(s.clone()),
+                Some(ref s)
+                    if !(cfg!(windows)
+                        || cfg!(target_os = "openbsd")
+                        || cfg!(target_os = "netbsd")
+                        || cfg!(target_os = "freebsd")
+                        || cfg!(target_os = "bitrig")
+                        || cfg!(target_os = "dragonflybsd")) =>
+                {
+                    makeflags = Some(s.clone())
+                }
 
                 // This looks like `make`, let's hope it understands `-jN`.
                 _ => make_args.push(format!("-j{}", s)),
@@ -653,15 +677,15 @@ impl Config {
         }
 
         // And build!
-        let make_targets = self.make_targets
-            .get_or_insert(vec!["install".to_string()]);
+        let make_targets = self.make_targets.get_or_insert(vec!["install".to_string()]);
         if let Some(flags) = makeflags {
             cmd.env("MAKEFLAGS", flags);
         }
 
-        run(cmd.args(make_targets)
-                .args(&make_args)
-                .current_dir(&build), program);
+        run(
+            cmd.args(make_targets).args(&make_args).current_dir(&build),
+            program,
+        );
 
         println!("cargo:root={}", dst.display());
         dst
@@ -677,13 +701,18 @@ fn run(cmd: &mut Command, program: &str) {
     let status = match cmd.status() {
         Ok(status) => status,
         Err(ref e) if e.kind() == ErrorKind::NotFound => {
-            fail(&format!("failed to execute command: {}\nis `{}` not installed?",
-                          e, program));
+            fail(&format!(
+                "failed to execute command: {}\nis `{}` not installed?",
+                e, program
+            ));
         }
         Err(e) => fail(&format!("failed to execute command: {}", e)),
     };
     if !status.success() {
-        fail(&format!("command did not execute successfully, got: {}", status));
+        fail(&format!(
+            "command did not execute successfully, got: {}",
+            status
+        ));
     }
 }
 
