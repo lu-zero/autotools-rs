@@ -498,7 +498,7 @@ impl Config {
             match env::var_os("LDFLAGS") {
                 None => cmd.env("LDFLAGS", &self.ldflags),
                 Some(flags) => {
-                    let mut os = OsString::from(flags);
+                    let mut os = flags;
                     os.push(" ");
                     os.push(&self.ldflags);
                     cmd.env("LDFLAGS", &os)
@@ -548,7 +548,7 @@ impl Config {
         }
 
         cmd.args(args.iter().filter(|x| {
-            !self.forbidden_args.contains(match x.find("=") {
+            !self.forbidden_args.contains(match x.find('=') {
                 Some(idx) => x.split_at(idx).0,
                 None => x.as_str(),
             })
@@ -587,7 +587,8 @@ impl Config {
         // dependencies the make will use config.status to run it anyhow.
         // Build up the first make command to build the build system.
         program = "make";
-        let executable = env::var("MAKE").unwrap_or(program.to_owned());
+        let executable = env::var("MAKE")
+            .unwrap_or_else(|_| program.to_owned());
         if target.contains("emscripten") {
             program = "emmake";
             cmd = Command::new("emmake");
