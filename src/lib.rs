@@ -642,18 +642,9 @@ impl Config {
         // interestingly if configure needs to be rerun because of any
         // dependencies the make will use config.status to run it anyhow.
         // Build up the first make command to build the build system.
-<<<<<<< HEAD
         let mut program = "make";
         let mut cmd;
         let executable = env::var("MAKE").unwrap_or_else(|_| program.to_owned());
-||||||| parent of 897c8e9 (Add a configure method)
-        program = "make";
-        let executable = env::var("MAKE").unwrap_or(program.to_owned());
-=======
-        let mut program = "make";
-        let mut cmd;
-        let executable = env::var("MAKE").unwrap_or(program.to_owned());
->>>>>>> 897c8e9 (Add a configure method)
         if target.contains("emscripten") {
             program = "emmake";
             cmd = new_command("emmake");
