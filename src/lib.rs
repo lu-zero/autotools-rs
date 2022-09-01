@@ -112,14 +112,7 @@ pub struct Config {
     reconfig: Option<OsString>,
     build_insource: bool,
     forbidden_args: HashSet<String>,
-<<<<<<< HEAD
     fast_build: bool,
-    prefix: Option<PathBuf>,
-    use_destdir: bool,
-||||||| 83d3bc4
-=======
-    fast_build: bool,
->>>>>>> upstream/master
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -200,30 +193,8 @@ impl Config {
             reconfig: None,
             build_insource: false,
             forbidden_args: HashSet::new(),
-<<<<<<< HEAD
             fast_build: false,
-            prefix: None,
-            use_destdir: false,
-||||||| 83d3bc4
-=======
-            fast_build: false,
->>>>>>> upstream/master
         }
-    }
-
-    /// Uses DESTDIR to perform the installation.
-    ///
-    /// This is more canonical and portable than using `--prefix`
-    /// and `--exec-prefix` in the configure script.
-    pub fn use_destdir(&mut self, use_destdir: bool) -> &mut Config {
-        self.use_destdir = use_destdir;
-        self
-    }
-
-    /// Sets the `--prefix` option for the `configure` script.
-    pub fn prefix<P: AsRef<Path>>(&mut self, path: P) -> &mut Config {
-        self.prefix = Some(path.as_ref().to_path_buf());
-        self
     }
 
     /// Enables building as a shared library (`--enable-shared`).
@@ -422,20 +393,6 @@ impl Config {
         self
     }
 
-<<<<<<< HEAD
-    /// Enable fast building (which skips over configure if there is no)
-    /// change in the configuration parameters.
-    pub fn fast_build(&mut self, fast: bool) -> &mut Config {
-        self.fast_build = fast;
-        self
-    }
-
-    /// Run this configuration, compiling the library with all the configured
-    /// options.
-||||||| 83d3bc4
-    /// Run this configuration, compiling the library with all the configured
-    /// options.
-=======
     /// Enable fast building (which skips over configure if there is no)
     /// change in the configuration parameters.
     pub fn fast_build(&mut self, fast: bool) -> &mut Config {
@@ -461,28 +418,7 @@ impl Config {
     }
 
     /// Run this configuration
->>>>>>> upstream/master
     ///
-<<<<<<< HEAD
-    /// This will run both the build system generator command as well as the
-    /// command to build the library.
-    pub fn build(&mut self) -> PathBuf {
-        let target = self
-            .target
-            .clone()
-            .unwrap_or_else(|| getenv_unwrap("TARGET"));
-        let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
-||||||| 83d3bc4
-    /// This will run both the build system generator command as well as the
-    /// command to build the library.
-    pub fn build(&mut self) -> PathBuf {
-        let target = self.target.clone().unwrap_or_else(|| {
-                getenv_unwrap("TARGET")
-        });
-        let host = self.host.clone().unwrap_or_else(|| {
-            getenv_unwrap("HOST")
-        });
-=======
     /// This will run only the build system generator.
     pub fn configure(&mut self) -> PathBuf {
         let target = self
@@ -490,7 +426,6 @@ impl Config {
             .clone()
             .unwrap_or_else(|| getenv_unwrap("TARGET"));
         let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
->>>>>>> upstream/master
         let mut c_cfg = cc::Build::new();
         c_cfg
             .cargo_metadata(false)
@@ -507,40 +442,7 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
-<<<<<<< HEAD
-        let dst;
-        let build;
-
-        if self.build_insource {
-            dst = self.path.clone();
-            build = dst.clone();
-        } else {
-            dst = self
-                .out_dir
-                .clone()
-                .unwrap_or_else(|| PathBuf::from(getenv_unwrap("OUT_DIR")));
-            build = dst.join("build");
-            self.maybe_clear(&build);
-            let _ = fs::create_dir(&build);
-        }
-||||||| 83d3bc4
-        let dst;
-        let build;
-
-        if self.build_insource {
-            dst = self.path.clone();
-            build = dst.clone();
-        } else {
-            dst = self.out_dir.clone().unwrap_or_else(|| {
-                PathBuf::from(getenv_unwrap("OUT_DIR"))
-            });
-            build = dst.join("build");
-            self.maybe_clear(&build);
-            let _ = fs::create_dir(&build);
-        }
-=======
         let (dst, build) = self.get_paths();
->>>>>>> upstream/master
 
         // TODO: env overrides?
         // TODO: PKG_CONFIG_PATH
@@ -564,21 +466,6 @@ impl Config {
             cmd = new_command(executable);
         }
 
-<<<<<<< HEAD
-        // TODO: discuss whether we should replace this
-        // with DESTDIR or something
-        if !self.use_destdir {
-            args.push(format!(
-                "--prefix={}",
-                self.prefix.as_ref().unwrap_or(&dst).display()
-            ));
-        } else {
-            args.push("--prefix=/usr".to_string());
-        }
-
-||||||| 83d3bc4
-        args.push(format!("--prefix={}", dst.display()));
-=======
         // TODO: discuss whether we should replace this
         // with DESTDIR or something
         args.push(format!("--prefix={}", dst.display()));
@@ -604,7 +491,6 @@ impl Config {
             }
         }
 
->>>>>>> upstream/master
         if self.enable_shared {
             args.push("--enable-shared".to_string());
         } else {
@@ -728,18 +614,6 @@ impl Config {
             true
         };
 
-<<<<<<< HEAD
-        if run_config {
-            let config_params_file = build.join("configure.prev");
-            let mut f = fs::File::create(&config_params_file).unwrap();
-            std::io::Write::write_all(&mut f, format!("{:?}", cmd).as_bytes()).unwrap();
-            run(cmd.current_dir(&build), program);
-        }
-
-        // interestingly if configure needs to be rerun because of any
-        // dependencies the make will use config.status to run it anyhow.
-||||||| 83d3bc4
-=======
         if run_config {
             let config_params_file = build.join("configure.prev");
             let mut f = fs::File::create(&config_params_file).unwrap();
@@ -767,19 +641,10 @@ impl Config {
 
         // interestingly if configure needs to be rerun because of any
         // dependencies the make will use config.status to run it anyhow.
->>>>>>> upstream/master
         // Build up the first make command to build the build system.
-<<<<<<< HEAD
-        program = "make";
-        let executable = env::var("MAKE").unwrap_or_else(|_| program.to_owned());
-||||||| 83d3bc4
-        program = "make";
-        let executable = env::var("MAKE").unwrap_or(program.to_owned());
-=======
         let mut program = "make";
         let mut cmd;
         let executable = env::var("MAKE").unwrap_or_else(|_| program.to_owned());
->>>>>>> upstream/master
         if target.contains("emscripten") {
             program = "emmake";
             cmd = new_command("emmake");
@@ -824,24 +689,10 @@ impl Config {
             cmd.env("MAKEFLAGS", flags);
         }
 
-<<<<<<< HEAD
-        if self.use_destdir {
-            cmd.arg(format!("DESTDIR={}", dst.display()));
-        }
         run(
             cmd.args(make_targets).args(&make_args).current_dir(&build),
             program,
         );
-||||||| 83d3bc4
-        run(cmd.args(make_targets)
-                .args(&make_args)
-                .current_dir(&build), program);
-=======
-        run(
-            cmd.args(make_targets).args(&make_args).current_dir(&build),
-            program,
-        );
->>>>>>> upstream/master
 
         println!("cargo:root={}", dst.display());
         dst
