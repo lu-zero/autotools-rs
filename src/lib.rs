@@ -113,6 +113,8 @@ pub struct Config {
     build_insource: bool,
     forbidden_args: HashSet<String>,
     fast_build: bool,
+    prefix: Option<PathBuf>,
+    use_destdir: bool,
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -194,7 +196,24 @@ impl Config {
             build_insource: false,
             forbidden_args: HashSet::new(),
             fast_build: false,
+            prefix: None,
+            use_destdir: false,
         }
+    }
+
+    /// Uses DESTDIR to perform the installation.
+    ///
+    /// This is more canonical and portable than using `--prefix`
+    /// and `--exec-prefix` in the configure script.
+    pub fn use_destdir(&mut self, use_destdir: bool) -> &mut Config {
+        self.use_destdir = use_destdir;
+        self
+    }
+
+    /// Sets the `--prefix` option for the `configure` script.
+    pub fn prefix<P: AsRef<Path>>(&mut self, path: P) -> &mut Config {
+        self.prefix = Some(path.as_ref().to_path_buf());
+        self
     }
 
     /// Enables building as a shared library (`--enable-shared`).
@@ -468,7 +487,14 @@ impl Config {
 
         // TODO: discuss whether we should replace this
         // with DESTDIR or something
-        args.push(format!("--prefix={}", dst.display()));
+        if !self.use_destdir {
+            args.push(format!(
+                "--prefix={}",
+                self.prefix.as_ref().unwrap_or(&dst).display()
+            ));
+        } else {
+            args.push("--prefix=/usr".to_string());
+        }
 
         if cfg!(windows) {
             // `configure` is hardcoded to fail on characters it deems "unsafe" found in a path--
@@ -689,6 +715,9 @@ impl Config {
             cmd.env("MAKEFLAGS", flags);
         }
 
+        if self.use_destdir {
+            cmd.arg(format!("DESTDIR={}", dst.display()));
+        }
         run(
             cmd.args(make_targets).args(&make_args).current_dir(&build),
             program,
