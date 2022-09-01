@@ -47,6 +47,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 
 enum Kind {
     Enable,
@@ -111,9 +112,14 @@ pub struct Config {
     reconfig: Option<OsString>,
     build_insource: bool,
     forbidden_args: HashSet<String>,
+<<<<<<< HEAD
     fast_build: bool,
     prefix: Option<PathBuf>,
     use_destdir: bool,
+||||||| 83d3bc4
+=======
+    fast_build: bool,
+>>>>>>> upstream/master
 }
 
 /// Builds the native library rooted at `path` with the default configure options.
@@ -140,6 +146,43 @@ impl Config {
     /// Creates a new blank set of configuration to build the project specified
     /// at the path `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Config {
+        // test that `sh` is present and does what we want--see `new_command` below
+        // sidestep the whole "execute permission" thing by only checking shebang functionality on Windows
+        let arg: String = if cfg!(windows) {
+            let out_dir = env::var_os("OUT_DIR").expect("missing OUT_DIR");
+            let path = PathBuf::from(out_dir).join("test.sh");
+            fs::write(&path, "#!/bin/sh\ntrue\n").expect("can't write to OUT_DIR");
+            // escape path (double the escape for double the fun!)
+            // (seriously it will break otherwise)
+            path.to_str()
+                .expect("invalid UTF-8 in path")
+                .escape_default()
+                .flat_map(char::escape_default)
+                .collect()
+        } else {
+            "true".into()
+        };
+
+        if let Ok(output) = Command::new("sh")
+            .arg("-c")
+            .arg(format!("echo test; {}", arg))
+            .output()
+        {
+            if !output.status.success() {
+                // Print `sh` output for debugging
+                println!("{}", str::from_utf8(&output.stdout).unwrap_or_default());
+                eprintln!("{}", str::from_utf8(&output.stderr).unwrap_or_default());
+
+                if cfg!(windows) && output.stdout == b"test\n" {
+                    fail("`sh` does not parse shebangs")
+                } else {
+                    fail("`sh` is not standard or is otherwise broken")
+                }
+            }
+        } else {
+            fail("`sh` is required to run `configure`")
+        }
+
         Config {
             enable_shared: false,
             enable_static: true,
@@ -157,9 +200,14 @@ impl Config {
             reconfig: None,
             build_insource: false,
             forbidden_args: HashSet::new(),
+<<<<<<< HEAD
             fast_build: false,
             prefix: None,
             use_destdir: false,
+||||||| 83d3bc4
+=======
+            fast_build: false,
+>>>>>>> upstream/master
         }
     }
 
@@ -374,6 +422,7 @@ impl Config {
         self
     }
 
+<<<<<<< HEAD
     /// Enable fast building (which skips over configure if there is no)
     /// change in the configuration parameters.
     pub fn fast_build(&mut self, fast: bool) -> &mut Config {
@@ -383,7 +432,38 @@ impl Config {
 
     /// Run this configuration, compiling the library with all the configured
     /// options.
+||||||| 83d3bc4
+    /// Run this configuration, compiling the library with all the configured
+    /// options.
+=======
+    /// Enable fast building (which skips over configure if there is no)
+    /// change in the configuration parameters.
+    pub fn fast_build(&mut self, fast: bool) -> &mut Config {
+        self.fast_build = fast;
+        self
+    }
+
+    fn get_paths(&self) -> (PathBuf, PathBuf) {
+        if self.build_insource {
+            let dst = self.path.clone();
+            let build = dst.clone();
+            (dst, build)
+        } else {
+            let dst = self
+                .out_dir
+                .clone()
+                .unwrap_or_else(|| PathBuf::from(getenv_unwrap("OUT_DIR")));
+            let build = dst.join("build");
+            self.maybe_clear(&build);
+            let _ = fs::create_dir(&build);
+            (dst, build)
+        }
+    }
+
+    /// Run this configuration
+>>>>>>> upstream/master
     ///
+<<<<<<< HEAD
     /// This will run both the build system generator command as well as the
     /// command to build the library.
     pub fn build(&mut self) -> PathBuf {
@@ -392,6 +472,25 @@ impl Config {
             .clone()
             .unwrap_or_else(|| getenv_unwrap("TARGET"));
         let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
+||||||| 83d3bc4
+    /// This will run both the build system generator command as well as the
+    /// command to build the library.
+    pub fn build(&mut self) -> PathBuf {
+        let target = self.target.clone().unwrap_or_else(|| {
+                getenv_unwrap("TARGET")
+        });
+        let host = self.host.clone().unwrap_or_else(|| {
+            getenv_unwrap("HOST")
+        });
+=======
+    /// This will run only the build system generator.
+    pub fn configure(&mut self) -> PathBuf {
+        let target = self
+            .target
+            .clone()
+            .unwrap_or_else(|| getenv_unwrap("TARGET"));
+        let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
+>>>>>>> upstream/master
         let mut c_cfg = cc::Build::new();
         c_cfg
             .cargo_metadata(false)
@@ -408,6 +507,7 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
+<<<<<<< HEAD
         let dst;
         let build;
 
@@ -423,12 +523,30 @@ impl Config {
             self.maybe_clear(&build);
             let _ = fs::create_dir(&build);
         }
+||||||| 83d3bc4
+        let dst;
+        let build;
+
+        if self.build_insource {
+            dst = self.path.clone();
+            build = dst.clone();
+        } else {
+            dst = self.out_dir.clone().unwrap_or_else(|| {
+                PathBuf::from(getenv_unwrap("OUT_DIR"))
+            });
+            build = dst.join("build");
+            self.maybe_clear(&build);
+            let _ = fs::create_dir(&build);
+        }
+=======
+        let (dst, build) = self.get_paths();
+>>>>>>> upstream/master
 
         // TODO: env overrides?
         // TODO: PKG_CONFIG_PATH
         if let Some(ref opts) = self.reconfig {
             let executable = "autoreconf".to_owned();
-            let mut cmd = Command::new(executable);
+            let mut cmd = new_command(executable);
             cmd.current_dir(&self.path);
 
             run(cmd.arg(opts), "autoreconf");
@@ -440,12 +558,13 @@ impl Config {
         let executable = PathBuf::from(&self.path).join(program);
         if target.contains("emscripten") {
             program = "emconfigure";
-            cmd = Command::new(program);
+            cmd = new_command(program);
             args.push(executable.to_string_lossy().to_string());
         } else {
-            cmd = Command::new(executable);
+            cmd = new_command(executable);
         }
 
+<<<<<<< HEAD
         // TODO: discuss whether we should replace this
         // with DESTDIR or something
         if !self.use_destdir {
@@ -457,6 +576,35 @@ impl Config {
             args.push("--prefix=/usr".to_string());
         }
 
+||||||| 83d3bc4
+        args.push(format!("--prefix={}", dst.display()));
+=======
+        // TODO: discuss whether we should replace this
+        // with DESTDIR or something
+        args.push(format!("--prefix={}", dst.display()));
+
+        if cfg!(windows) {
+            // `configure` is hardcoded to fail on characters it deems "unsafe" found in a path--
+            // including '\', i.e. the Windows path separator. It will happily pull a Windows-style path
+            // for `srcdir` on its own, and then immediately complain about it. Hopefully we're building
+            // in a Cygwin/MSYS environment that can give us a path that will make it happy.
+            let cygpath = Command::new("cygpath")
+                .args(["--unix", "--codepage=UTF8"])
+                .args([&dst, &self.path])
+                .output();
+            if let Ok(output) = cygpath {
+                if output.status.success() {
+                    let output = String::from_utf8(output.stdout).unwrap();
+                    let mut lines = output.lines();
+                    let prefix = lines.next().unwrap();
+                    let srcdir = lines.next().unwrap();
+                    args.push(format!("--prefix={}", prefix));
+                    args.push(format!("--srcdir={}", srcdir));
+                }
+            }
+        }
+
+>>>>>>> upstream/master
         if self.enable_shared {
             args.push("--enable-shared".to_string());
         } else {
@@ -532,15 +680,20 @@ impl Config {
             args.push(os.to_string_lossy().to_string());
         }
 
-        if !config_host {
-            let compiler_path = format!("--host={}", c_compiler.path().display());
-            if compiler_path != "--host=musl-gcc" && compiler_path.ends_with("-gcc") {
-                args.push(compiler_path[0..compiler_path.len() - 4].to_string());
+        let cc_path = c_compiler.path().to_str().unwrap();
+        let cxx_path = cxx_compiler.path().to_str().unwrap();
+
+        if !config_host && cc_path != "musl-gcc" {
+            let host = cc_path
+                .strip_suffix("-cc")
+                .or_else(|| cc_path.strip_suffix("-gcc"));
+            if let Some(host) = host {
+                args.push(format!("--host={}", host));
             }
         }
 
-        cmd.env("CC", c_compiler.path().to_str().unwrap());
-        cmd.env("CXX", cxx_compiler.path().to_str().unwrap());
+        cmd.env("CC", cc_path);
+        cmd.env("CXX", cxx_path);
 
         for &(ref k, ref v) in c_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
@@ -575,6 +728,7 @@ impl Config {
             true
         };
 
+<<<<<<< HEAD
         if run_config {
             let config_params_file = build.join("configure.prev");
             let mut f = fs::File::create(&config_params_file).unwrap();
@@ -584,15 +738,54 @@ impl Config {
 
         // interestingly if configure needs to be rerun because of any
         // dependencies the make will use config.status to run it anyhow.
+||||||| 83d3bc4
+=======
+        if run_config {
+            let config_params_file = build.join("configure.prev");
+            let mut f = fs::File::create(&config_params_file).unwrap();
+            std::io::Write::write_all(&mut f, format!("{:?}", cmd).as_bytes()).unwrap();
+            run(cmd.current_dir(&build), program);
+        }
+
+        dst
+    }
+
+    /// Run this configuration, compiling the library with all the configured
+    /// options.
+    ///
+    /// This will run both the build system generator command as well as the
+    /// command to build the library.
+    pub fn build(&mut self) -> PathBuf {
+        self.configure();
+
+        let (dst, build) = self.get_paths();
+
+        let target = self
+            .target
+            .clone()
+            .unwrap_or_else(|| getenv_unwrap("TARGET"));
+
+        // interestingly if configure needs to be rerun because of any
+        // dependencies the make will use config.status to run it anyhow.
+>>>>>>> upstream/master
         // Build up the first make command to build the build system.
+<<<<<<< HEAD
         program = "make";
         let executable = env::var("MAKE").unwrap_or_else(|_| program.to_owned());
+||||||| 83d3bc4
+        program = "make";
+        let executable = env::var("MAKE").unwrap_or(program.to_owned());
+=======
+        let mut program = "make";
+        let mut cmd;
+        let executable = env::var("MAKE").unwrap_or_else(|_| program.to_owned());
+>>>>>>> upstream/master
         if target.contains("emscripten") {
             program = "emmake";
-            cmd = Command::new("emmake");
+            cmd = new_command("emmake");
             cmd.arg(executable);
         } else {
-            cmd = Command::new(executable);
+            cmd = new_command(executable);
         }
         cmd.current_dir(&build);
 
@@ -631,6 +824,7 @@ impl Config {
             cmd.env("MAKEFLAGS", flags);
         }
 
+<<<<<<< HEAD
         if self.use_destdir {
             cmd.arg(format!("DESTDIR={}", dst.display()));
         }
@@ -638,6 +832,16 @@ impl Config {
             cmd.args(make_targets).args(&make_args).current_dir(&build),
             program,
         );
+||||||| 83d3bc4
+        run(cmd.args(make_targets)
+                .args(&make_args)
+                .current_dir(&build), program);
+=======
+        run(
+            cmd.args(make_targets).args(&make_args).current_dir(&build),
+            program,
+        );
+>>>>>>> upstream/master
 
         println!("cargo:root={}", dst.display());
         dst
@@ -666,6 +870,23 @@ fn run(cmd: &mut Command, program: &str) {
             status
         ));
     }
+}
+
+// Windows users cannot execute `./configure` (shell script) or `autoreconf` (Perl script) directly
+// like everyone else in the world can. However, the Cygwin compatibility layer handles the task of
+// reading the shebang of any file an application tries to "execute" (in lieu of a kernel doing the same),
+// and transparently invokes the referenced executable just like a Unix user would expect.
+//
+// Long story short, this function assumes two things:
+// 1. `sh` exists on PATH (kind of hard to run `./configure` without that, huh)
+// 2. If on Windows, `sh` lives in magical Cygwin land and can parse shebangs for us (thus preserving
+//    functionality between Windows and everyone else)
+// Prepare a process::Command wherein the program is invoked within `sh`.
+// The presence of `sh` is verified in Config::new above.
+fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
+    let mut cmd = Command::new("sh");
+    cmd.args(["-c", "exec \"$0\" \"$@\""]).arg(program);
+    cmd
 }
 
 fn getenv_unwrap(v: &str) -> String {
