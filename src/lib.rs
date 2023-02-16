@@ -139,6 +139,15 @@ impl Config {
     /// Creates a new blank set of configuration to build the project specified
     /// at the path `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Config {
+        match Config::try_new(path) {
+            Ok(config) => config,
+            Err(msg) => fail(&msg),
+        }
+    }
+
+    /// Tries to create a new blank set of configuration to build the project specified
+    /// at the path `path`. 
+    pub fn try_new<P: AsRef<Path>>(path: P) -> Result<Config,String> {
         // test that `sh` is present and does what we want--see `new_command` below
         // sidestep the whole "execute permission" thing by only checking shebang functionality on Windows
         let arg: String = if cfg!(windows) {
@@ -167,16 +176,16 @@ impl Config {
                 eprintln!("{}", str::from_utf8(&output.stderr).unwrap_or_default());
 
                 if cfg!(windows) && output.stdout == b"test\n" {
-                    fail("`sh` does not parse shebangs")
+                    return Err("`sh` does not parse shebangs".to_owned());
                 } else {
-                    fail("`sh` is not standard or is otherwise broken")
+                    return Err("`sh` is not standard or is otherwise broken".to_owned());
                 }
             }
         } else {
-            fail("`sh` is required to run `configure`")
+            return Err("`sh` is required to run `configure`".to_owned());
         }
 
-        Config {
+        Ok(Config {
             enable_shared: false,
             enable_static: true,
             path: env::current_dir().unwrap().join(path),
@@ -194,7 +203,7 @@ impl Config {
             build_insource: false,
             forbidden_args: HashSet::new(),
             fast_build: false,
-        }
+        })
     }
 
     /// Enables building as a shared library (`--enable-shared`).
@@ -393,20 +402,22 @@ impl Config {
         self
     }
 
-    fn get_paths(&self) -> (PathBuf, PathBuf) {
+    fn try_get_paths(&self) -> Result<(PathBuf, PathBuf),String> {
         if self.build_insource {
             let dst = self.path.clone();
             let build = dst.clone();
-            (dst, build)
+            Ok((dst, build))
         } else {
-            let dst = self
+            let dst = match self
                 .out_dir
-                .clone()
-                .unwrap_or_else(|| PathBuf::from(getenv_unwrap("OUT_DIR")));
+                .clone() {
+                Some(dst) => dst,
+                None => PathBuf::from(try_getenv_unwrap("OUT_DIR")?),
+            };
             let build = dst.join("build");
             self.maybe_clear(&build);
             let _ = fs::create_dir(&build);
-            (dst, build)
+            Ok((dst, build))
         }
     }
 
@@ -414,11 +425,26 @@ impl Config {
     ///
     /// This will run only the build system generator.
     pub fn configure(&mut self) -> PathBuf {
-        let target = self
+        match self.try_configure(){
+            Ok(path) => path,
+            Err(msg) => fail(&msg),
+        }
+    }
+
+    /// Run this configuration
+    ///
+    /// This will run only the build system generator.
+    pub fn try_configure(&mut self) -> Result<PathBuf,String> {
+        let target = match self
             .target
-            .clone()
-            .unwrap_or_else(|| getenv_unwrap("TARGET"));
-        let host = self.host.clone().unwrap_or_else(|| getenv_unwrap("HOST"));
+            .clone() {
+            Some(target) => target,
+            None =>  try_getenv_unwrap("TARGET")?,
+        };
+        let host = match self.host.clone() {
+            Some(host) => host,
+            None => try_getenv_unwrap("HOST")?,
+        };
         let mut c_cfg = cc::Build::new();
         c_cfg
             .cargo_metadata(false)
@@ -435,7 +461,7 @@ impl Config {
         let c_compiler = c_cfg.get_compiler();
         let cxx_compiler = cxx_cfg.get_compiler();
 
-        let (dst, build) = self.get_paths();
+        let (dst, build) = self.try_get_paths()?;
 
         // TODO: env overrides?
         // TODO: PKG_CONFIG_PATH
@@ -444,7 +470,8 @@ impl Config {
             let mut cmd = new_command(executable);
             cmd.current_dir(&self.path);
 
-            run(cmd.arg(opts), "autoreconf");
+            try_run(cmd.arg(opts), "autoreconf")?;
+
         }
 
         let mut cmd;
@@ -611,10 +638,10 @@ impl Config {
             let config_params_file = build.join("configure.prev");
             let mut f = fs::File::create(&config_params_file).unwrap();
             std::io::Write::write_all(&mut f, format!("{:?}", cmd).as_bytes()).unwrap();
-            run(cmd.current_dir(&build), program);
+            try_run(cmd.current_dir(&build), program)?;
         }
 
-        dst
+        Ok(dst)
     }
 
     /// Run this configuration, compiling the library with all the configured
@@ -623,14 +650,28 @@ impl Config {
     /// This will run both the build system generator command as well as the
     /// command to build the library.
     pub fn build(&mut self) -> PathBuf {
-        self.configure();
+        match self.try_build(){
+            Ok(path) => path,
+            Err(msg) => fail(&msg),
+        }
+    }
 
-        let (dst, build) = self.get_paths();
+    ///  Try to run this configuration, compiling the library with all the configured
+    /// options.
+    ///
+    /// This will run both the build system generator command as well as the
+    /// command to build the library. If it fails it will return the last error code recieved
+    pub fn try_build(&mut self) -> Result<PathBuf,String> {
+        self.try_configure()?;
 
-        let target = self
+        let (dst, build) = self.try_get_paths()?;
+
+        let target = match self
             .target
-            .clone()
-            .unwrap_or_else(|| getenv_unwrap("TARGET"));
+            .clone() {
+            Some(target) => target,
+            None => try_getenv_unwrap("TARGET")?,
+        };
 
         // interestingly if configure needs to be rerun because of any
         // dependencies the make will use config.status to run it anyhow.
@@ -682,13 +723,13 @@ impl Config {
             cmd.env("MAKEFLAGS", flags);
         }
 
-        run(
+        try_run(
             cmd.args(make_targets).args(&make_args).current_dir(&build),
             program,
-        );
+        )?;
 
         println!("cargo:root={}", dst.display());
-        dst
+        Ok(dst)
     }
 
     fn maybe_clear(&self, _dir: &Path) {
@@ -696,24 +737,25 @@ impl Config {
     }
 }
 
-fn run(cmd: &mut Command, program: &str) {
+fn try_run(cmd: &mut Command, program: &str) -> Result<(),String> {
     println!("running: {:?}", cmd);
     let status = match cmd.status() {
         Ok(status) => status,
         Err(ref e) if e.kind() == ErrorKind::NotFound => {
-            fail(&format!(
+            return Err(format!(
                 "failed to execute command: {}\nis `{}` not installed?",
                 e, program
             ));
         }
-        Err(e) => fail(&format!("failed to execute command: {}", e)),
+        Err(e) => {return Err(format!("failed to execute command: {}", e));}
     };
     if !status.success() {
-        fail(&format!(
+        return Err(format!(
             "command did not execute successfully, got: {}",
             status
         ));
     }
+    Ok(())
 }
 
 // Windows users cannot execute `./configure` (shell script) or `autoreconf` (Perl script) directly
@@ -733,10 +775,10 @@ fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
     cmd
 }
 
-fn getenv_unwrap(v: &str) -> String {
+fn try_getenv_unwrap(v: &str) -> Result<String,String> {
     match env::var(v) {
-        Ok(s) => s,
-        Err(..) => fail(&format!("environment variable `{}` not defined", v)),
+        Ok(s) => Ok(s),
+        Err(..) => Err(format!("environment variable `{}` not defined", v)),
     }
 }
 
