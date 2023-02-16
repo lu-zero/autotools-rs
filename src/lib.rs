@@ -146,8 +146,8 @@ impl Config {
     }
 
     /// Tries to create a new blank set of configuration to build the project specified
-    /// at the path `path`. 
-    pub fn try_new<P: AsRef<Path>>(path: P) -> Result<Config,String> {
+    /// at the path `path`.
+    pub fn try_new<P: AsRef<Path>>(path: P) -> Result<Config, String> {
         // test that `sh` is present and does what we want--see `new_command` below
         // sidestep the whole "execute permission" thing by only checking shebang functionality on Windows
         let arg: String = if cfg!(windows) {
@@ -402,15 +402,13 @@ impl Config {
         self
     }
 
-    fn try_get_paths(&self) -> Result<(PathBuf, PathBuf),String> {
+    fn try_get_paths(&self) -> Result<(PathBuf, PathBuf), String> {
         if self.build_insource {
             let dst = self.path.clone();
             let build = dst.clone();
             Ok((dst, build))
         } else {
-            let dst = match self
-                .out_dir
-                .clone() {
+            let dst = match self.out_dir.clone() {
                 Some(dst) => dst,
                 None => PathBuf::from(try_getenv_unwrap("OUT_DIR")?),
             };
@@ -425,21 +423,19 @@ impl Config {
     ///
     /// This will run only the build system generator.
     pub fn configure(&mut self) -> PathBuf {
-        match self.try_configure(){
+        match self.try_configure() {
             Ok(path) => path,
             Err(msg) => fail(&msg),
         }
     }
 
-    /// Run this configuration
+    /// Try to run this configuration
     ///
-    /// This will run only the build system generator.
-    pub fn try_configure(&mut self) -> Result<PathBuf,String> {
-        let target = match self
-            .target
-            .clone() {
+    /// This will run only the build system generator, returning an error message on failure.
+    pub fn try_configure(&mut self) -> Result<PathBuf, String> {
+        let target = match self.target.clone() {
             Some(target) => target,
-            None =>  try_getenv_unwrap("TARGET")?,
+            None => try_getenv_unwrap("TARGET")?,
         };
         let host = match self.host.clone() {
             Some(host) => host,
@@ -471,7 +467,6 @@ impl Config {
             cmd.current_dir(&self.path);
 
             try_run(cmd.arg(opts), "autoreconf")?;
-
         }
 
         let mut cmd;
@@ -650,7 +645,7 @@ impl Config {
     /// This will run both the build system generator command as well as the
     /// command to build the library.
     pub fn build(&mut self) -> PathBuf {
-        match self.try_build(){
+        match self.try_build() {
             Ok(path) => path,
             Err(msg) => fail(&msg),
         }
@@ -660,15 +655,13 @@ impl Config {
     /// options.
     ///
     /// This will run both the build system generator command as well as the
-    /// command to build the library. If it fails it will return the last error code recieved
-    pub fn try_build(&mut self) -> Result<PathBuf,String> {
+    /// command to build the library. If it fails it will return an error message
+    pub fn try_build(&mut self) -> Result<PathBuf, String> {
         self.try_configure()?;
 
         let (dst, build) = self.try_get_paths()?;
 
-        let target = match self
-            .target
-            .clone() {
+        let target = match self.target.clone() {
             Some(target) => target,
             None => try_getenv_unwrap("TARGET")?,
         };
@@ -737,7 +730,7 @@ impl Config {
     }
 }
 
-fn try_run(cmd: &mut Command, program: &str) -> Result<(),String> {
+fn try_run(cmd: &mut Command, program: &str) -> Result<(), String> {
     println!("running: {:?}", cmd);
     let status = match cmd.status() {
         Ok(status) => status,
@@ -747,7 +740,9 @@ fn try_run(cmd: &mut Command, program: &str) -> Result<(),String> {
                 e, program
             ));
         }
-        Err(e) => {return Err(format!("failed to execute command: {}", e));}
+        Err(e) => {
+            return Err(format!("failed to execute command: {}", e));
+        }
     };
     if !status.success() {
         return Err(format!(
@@ -775,7 +770,7 @@ fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
     cmd
 }
 
-fn try_getenv_unwrap(v: &str) -> Result<String,String> {
+fn try_getenv_unwrap(v: &str) -> Result<String, String> {
     match env::var(v) {
         Ok(s) => Ok(s),
         Err(..) => Err(format!("environment variable `{}` not defined", v)),
