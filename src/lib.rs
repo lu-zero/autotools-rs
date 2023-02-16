@@ -560,7 +560,7 @@ impl Config {
 
         let mut config_host = false;
 
-        for &(ref kind, ref k, ref v) in &self.options {
+        for (kind, k, v) in &self.options {
             let mut os = OsString::from("--");
             match *kind {
                 Kind::Enable => os.push("enable-"),
@@ -574,7 +574,7 @@ impl Config {
                 }
             };
             os.push(k);
-            if let &Some(ref v) = v {
+            if let Some(v) = v {
                 os.push("=");
                 os.push(v);
             }
@@ -596,11 +596,11 @@ impl Config {
         cmd.env("CC", cc_path);
         cmd.env("CXX", cxx_path);
 
-        for &(ref k, ref v) in c_compiler.env().iter().chain(&self.env) {
+        for (k, v) in c_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
         }
 
-        for &(ref k, ref v) in cxx_compiler.env().iter().chain(&self.env) {
+        for (k, v) in cxx_compiler.env().iter().chain(&self.env) {
             cmd.env(k, v);
         }
 
@@ -631,7 +631,7 @@ impl Config {
 
         if run_config {
             let config_params_file = build.join("configure.prev");
-            let mut f = fs::File::create(&config_params_file).unwrap();
+            let mut f = fs::File::create(config_params_file).unwrap();
             std::io::Write::write_all(&mut f, format!("{:?}", cmd).as_bytes()).unwrap();
             try_run(cmd.current_dir(&build), program)?;
         }
