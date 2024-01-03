@@ -13,9 +13,23 @@ a compatible `configure` script + `make`.
 It is based on [cmake-rs](https://github.com/alexcrichton/cmake-rs) and
 the API tries to be as similar as possible to it.
 
+## Cross compiling
+
+### Emscripten
 For Emscripten targets like "wasm32-unknown-emscripten", `configure` and
 `make` invocations are passed as arguments to `emconfigure` and `emmake`
 respectively as described in the [Emscripten docs](https://emscripten.org/docs/compiling/Building-Projects.html#integrating-with-a-build-system).
+
+### Custom LLVM on macOS
+Make sure to set the env to `CC=clang-{version}` and that the compiler is in the `PATH`. If you are using [install-llvm-action](https://github.com/KyleMayes/install-llvm-action),
+make sure to set [`env: true`](https://github.com/KyleMayes/install-llvm-action#env).
+
+### Other compilers
+Keep in mind that we rely on `cc-rs` heuristics to select the C and C++ compilers. Some may be missing on your system, please make sure to set
+the [enviroment variables](https://github.com/rust-lang/cc-rs#external-configuration-via-environment-variables) to select the correct compiler if
+the heuristics fail (e.g. `musl-gcc` might not exist while `x86_64-linux-musl-gcc` does).
+
+
 
 ``` toml
 # Cargo.toml
