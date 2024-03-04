@@ -688,13 +688,15 @@ impl Config {
             make_args.extend_from_slice(args);
         }
 
-        if let Ok(s) = env::var("NUM_JOBS") {
+        if let Ok(num_jobs_s) = env::var("NUM_JOBS") {
+            // This looks like `make`, let's hope it understands `-jN`.
+            make_args.push(format!("-j{}", num_jobs_s));
             match env::var_os("CARGO_MAKEFLAGS") {
                 // Only do this on non-windows and non-bsd
                 // On Windows, we could be invoking make instead of
                 // mingw32-make which doesn't work with our jobserver
                 // bsdmake also does not work with our job server
-                Some(ref s)
+                Some(ref cargo_make_flags)
                     if !(cfg!(windows)
                         || cfg!(target_os = "openbsd")
                         || cfg!(target_os = "netbsd")
@@ -702,11 +704,9 @@ impl Config {
                         || cfg!(target_os = "bitrig")
                         || cfg!(target_os = "dragonflybsd")) =>
                 {
-                    makeflags = Some(s.clone())
+                    makeflags = Some(cargo_make_flags.clone())
                 }
-
-                // This looks like `make`, let's hope it understands `-jN`.
-                _ => make_args.push(format!("-j{}", s)),
+                _ => (),
             }
         }
 
