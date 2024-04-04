@@ -3,6 +3,15 @@
 //! This crate provides the facilities to setup the build system and build native libraries
 //! that leverage `autotools` or `configure & make` workalike scripts.
 //!
+//! ## Autotools `configure` concern
+//! The generated `configure` script that is often bundled in release tarballs tends to be fairly big, convoluted and at least once has been a vector for
+//! delivering malicious code ([CVE-2024-3094][cve-xz]).
+//!
+//! It is advised to review `configure.ac` and always regenerate `configure` using [`reconf`][reconf].
+//!
+//! [cve-xz]: https://nvd.nist.gov/vuln/detail/CVE-2024-3094
+//! [reconf]: https://docs.rs/autotools/latest/autotools/struct.Config.html#method.reconf
+//!
 //! ## Installation
 //!
 //! Add to your `Cargo.toml` a build dependency:

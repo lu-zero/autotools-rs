@@ -13,6 +13,15 @@ a compatible `configure` script + `make`.
 It is based on [cmake-rs](https://github.com/alexcrichton/cmake-rs) and
 the API tries to be as similar as possible to it.
 
+## Autotools concern
+The generated `configure` script that is often bundled in release tarballs tends to be fairly big, convoluted and at least once has been a vector for
+delivering malicious code ([CVE-2024-3094][cve-xz].
+
+It is advised to review `configure.ac` and always regenerate `configure` using [`reconf`][reconf].
+
+[cve-xz]: https://nvd.nist.gov/vuln/detail/CVE-2024-3094
+[reconf]: https://docs.rs/autotools/latest/autotools/struct.Config.html#method.reconf
+
 ## Cross compiling
 
 ### Emscripten
